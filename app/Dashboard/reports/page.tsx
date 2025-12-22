@@ -5,7 +5,8 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "@/amplify/data/resource";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
-import { RefreshCw, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2 } from "lucide-react";
+import { EditIncidentReportModal } from "@/components/forms/EditIncidentReportModal";
 
 const client = generateClient<Schema>();
 
@@ -33,6 +34,8 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingReport, setEditingReport] = useState<IncidentReport | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchReports = async () => {
     setIsLoading(true);
@@ -68,6 +71,45 @@ export default function ReportsPage() {
   useEffect(() => {
     fetchReports();
   }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this incident report? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeletingId(id);
+    try {
+      console.log(`Deleting incident report with ID: ${id}`);
+      const result = await client.models.IncidentReport.delete({ id });
+
+      if (result.data) {
+        console.log("✅ Successfully deleted incident report");
+        // Remove from local state
+        setReports(reports.filter(report => report.id !== id));
+      } else if (result.errors) {
+        console.error("❌ Error deleting report:", result.errors);
+        alert(`Failed to delete report: ${result.errors.map(e => e.message).join(", ")}`);
+      }
+    } catch (error: any) {
+      console.error("Error deleting report:", error);
+      alert(`Error deleting report: ${error?.message || "Unknown error"}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (report: IncidentReport) => {
+    setEditingReport(report);
+  };
+
+  const handleCloseModal = () => {
+    setEditingReport(null);
+  };
+
+  const handleEditSuccess = () => {
+    // Refresh the reports list after successful edit
+    fetchReports();
+  };
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
@@ -147,6 +189,15 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {editingReport && (
+        <EditIncidentReportModal
+          report={editingReport}
+          isOpen={!!editingReport}
+          onClose={handleCloseModal}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
       {reports.length > 0 && (
         <div className="space-y-4">
           {reports.map((report) => (
@@ -163,7 +214,32 @@ export default function ReportsPage() {
                     ID: <span className="font-mono text-xs">{report.id}</span>
                   </p>
                 </div>
-                {getStatusBadge(report.status)}
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(report.status)}
+                  <Button
+                    onClick={() => handleEdit(report)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(report.id)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    disabled={deletingId === report.id}
+                  >
+                    {deletingId === report.id ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {deletingId === report.id ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">

@@ -97,16 +97,16 @@ export function IncidentReportForm() {
 
   const uploadPhotos = async (photos: FileWithPreview[]): Promise<string[]> => {
     const uploadPromises = photos.map(async (photo, index) => {
-      const key = `incident-photos/${Date.now()}-${index}-${photo.name}`;
+      const path = `incident-photos/${Date.now()}-${index}-${photo.name}`;
       try {
         const result = await uploadData({
-          key,
+          path,
           data: photo,
           options: {
             contentType: photo.type,
           },
         }).result;
-        return result.key;
+        return result.path;
       } catch (error) {
         console.error("Error uploading photo:", error);
         throw error;
@@ -161,10 +161,17 @@ export function IncidentReportForm() {
       if (files.length > 0) {
         try {
           console.log("Uploading photos...");
+          console.log("Number of files to upload:", files.length);
+          console.log("File details:", files.map(f => ({ name: f.name, type: f.type, size: f.size })));
           photoUrls = await uploadPhotos(files);
-          console.log("✅ Photos uploaded:", photoUrls);
-        } catch (storageError) {
-          console.warn("⚠️ Photo upload failed, continuing without photos:", storageError);
+          console.log("✅ Photos uploaded successfully!");
+          console.log("Photo URLs:", photoUrls);
+        } catch (storageError: any) {
+          console.error("❌ Photo upload failed!");
+          console.error("Error type:", storageError?.constructor?.name);
+          console.error("Error message:", storageError?.message);
+          console.error("Error details:", storageError);
+          console.error("Full error object:", JSON.stringify(storageError, null, 2));
           // Continue without photos if storage fails
           photoUrls = [];
         }
