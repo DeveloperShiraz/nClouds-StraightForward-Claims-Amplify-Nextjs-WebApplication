@@ -174,6 +174,8 @@ export function IncidentReportForm() {
         incidentDate: data.incidentDate.toISOString().split('T')[0], // Convert to date string
         description: data.description,
         shingleExposure: data.shingleExposure ? parseFloat(data.shingleExposure) : undefined,
+        status: "submitted" as const,
+        submittedAt: new Date().toISOString(),
         photoUrls: [],
       };
 

@@ -5,8 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, X, Upload, Trash2 } from "lucide-react";
 import { generateClient } from "aws-amplify/data";
+import { getUrl, uploadData, remove } from "aws-amplify/storage";
 import type { Schema } from "@/amplify/data/resource";
 
 import { Button } from "@/components/ui/Button";
@@ -48,6 +49,10 @@ const editIncidentReportSchema = z.object({
   zip: z.string().regex(/^\d{5}$/, "ZIP must be 5 digits"),
   incidentDate: z.date(),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  shingleExposure: z.string()
+    .optional()
+    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0 && parseFloat(val) <= 100),
+      "Shingle exposure must be between 0 and 100 inches"),
   status: z.enum(["submitted", "in_review", "resolved"]).optional(),
 });
 
@@ -66,6 +71,7 @@ interface IncidentReport {
   zip: string;
   incidentDate: string;
   description: string;
+  shingleExposure?: number;
   photoUrls?: string[];
   status?: string;
   submittedAt?: string;
@@ -87,6 +93,10 @@ export function EditIncidentReportModal({
   onSuccess,
 }: EditIncidentReportModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
+  const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [deletedPhotos, setDeletedPhotos] = useState<string[]>([]);
 
   const form = useForm<EditIncidentReportFormData>({
     resolver: zodResolver(editIncidentReportSchema),
@@ -102,6 +112,7 @@ export function EditIncidentReportModal({
       zip: report.zip,
       incidentDate: new Date(report.incidentDate),
       description: report.description,
+      shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
       status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
     },
   });
@@ -121,16 +132,130 @@ export function EditIncidentReportModal({
         zip: report.zip,
         incidentDate: new Date(report.incidentDate),
         description: report.description,
+        shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
         status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
       });
+
+      // Initialize photos
+      setExistingPhotos(report.photoUrls || []);
+      setNewPhotos([]);
+      setDeletedPhotos([]);
+
+      // Fetch signed URLs for existing photos
+      const fetchSignedUrls = async () => {
+        if (report.photoUrls && report.photoUrls.length > 0) {
+          try {
+            const urlPromises = report.photoUrls.map(async (path) => {
+              try {
+                const result = await getUrl({ path });
+                return result.url.toString();
+              } catch (error) {
+                console.error(`Error getting URL for ${path}:`, error);
+                return null;
+              }
+            });
+            const urls = await Promise.all(urlPromises);
+            setPhotoSignedUrls(urls.filter((url): url is string => url !== null));
+          } catch (error) {
+            console.error("Error fetching signed URLs:", error);
+          }
+        } else {
+          setPhotoSignedUrls([]);
+        }
+      };
+
+      fetchSignedUrls();
     }
   }, [isOpen, report, form]);
+
+  const handleDeleteExistingPhoto = async (photoPath: string, index: number) => {
+    if (!confirm("Are you sure you want to delete this photo?")) {
+      return;
+    }
+
+    try {
+      // Mark photo for deletion
+      setDeletedPhotos([...deletedPhotos, photoPath]);
+
+      // Remove from UI
+      const newExistingPhotos = existingPhotos.filter((p) => p !== photoPath);
+      const newSignedUrls = [...photoSignedUrls];
+      newSignedUrls.splice(index, 1);
+
+      setExistingPhotos(newExistingPhotos);
+      setPhotoSignedUrls(newSignedUrls);
+
+      console.log(`Marked photo for deletion: ${photoPath}`);
+    } catch (error) {
+      console.error("Error marking photo for deletion:", error);
+      alert("Failed to delete photo. Please try again.");
+    }
+  };
+
+  const handleAddNewPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const fileArray = Array.from(files);
+      setNewPhotos([...newPhotos, ...fileArray]);
+    }
+  };
+
+  const handleRemoveNewPhoto = (index: number) => {
+    const updatedPhotos = [...newPhotos];
+    updatedPhotos.splice(index, 1);
+    setNewPhotos(updatedPhotos);
+  };
 
   const onSubmit = async (data: EditIncidentReportFormData) => {
     setIsSubmitting(true);
     try {
       console.log("Updating incident report:", report.id);
 
+      // Step 1: Delete removed photos from S3
+      if (deletedPhotos.length > 0) {
+        console.log(`Deleting ${deletedPhotos.length} photos from S3...`);
+        const deletePromises = deletedPhotos.map(async (photoPath) => {
+          try {
+            await remove({ path: photoPath });
+            console.log(`✅ Deleted photo: ${photoPath}`);
+          } catch (error) {
+            console.error(`Failed to delete photo ${photoPath}:`, error);
+          }
+        });
+        await Promise.all(deletePromises);
+      }
+
+      // Step 2: Upload new photos to S3
+      let newPhotoUrls: string[] = [];
+      if (newPhotos.length > 0) {
+        console.log(`Uploading ${newPhotos.length} new photos to S3...`);
+        const uploadPromises = newPhotos.map(async (photo, index) => {
+          const path = `incident-photos/${report.id}/${Date.now()}-${index}-${photo.name}`;
+          try {
+            const result = await uploadData({
+              path,
+              data: photo,
+              options: {
+                contentType: photo.type,
+              },
+            }).result;
+            console.log(`✅ Uploaded photo: ${result.path}`);
+            return result.path;
+          } catch (error) {
+            console.error("Error uploading photo:", error);
+            throw error;
+          }
+        });
+        newPhotoUrls = await Promise.all(uploadPromises);
+      }
+
+      // Step 3: Calculate final photoUrls array (existing - deleted + new)
+      const finalPhotoUrls = [
+        ...existingPhotos.filter(p => !deletedPhotos.includes(p)),
+        ...newPhotoUrls
+      ];
+
+      // Step 4: Update the report in DynamoDB
       const updateData = {
         id: report.id,
         firstName: data.firstName,
@@ -144,7 +269,9 @@ export function EditIncidentReportModal({
         zip: data.zip,
         incidentDate: data.incidentDate.toISOString().split('T')[0],
         description: data.description,
+        shingleExposure: data.shingleExposure ? parseFloat(data.shingleExposure) : undefined,
         status: data.status,
+        photoUrls: finalPhotoUrls,
       };
 
       const result = await client.models.IncidentReport.update(updateData);
@@ -411,6 +538,115 @@ export function EditIncidentReportModal({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="shingleExposure"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Shingle Exposure (Optional)</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        step="0.25"
+                        min="0"
+                        max="12"
+                        placeholder="Enter measurement"
+                        {...field}
+                        className="pr-16"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                        inches
+                      </span>
+                    </div>
+                  </FormControl>
+                  <p className="text-xs text-gray-500">
+                    Height from top to bottom of shingle (0-12 inches)
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Photo Management Section */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Incident Photos</h3>
+
+                {/* Existing Photos */}
+                {photoSignedUrls.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">Current Photos</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {photoSignedUrls.map((signedUrl, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={signedUrl}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExistingPhoto(existingPhotos[index], index)}
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <p className="text-xs text-gray-600 mt-1 text-center">Photo {index + 1}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* New Photos Preview */}
+                {newPhotos.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">New Photos to Upload</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {newPhotos.map((photo, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={URL.createObjectURL(photo)}
+                            alt={`New photo ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-blue-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewPhoto(index)}
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <p className="text-xs text-gray-600 mt-1 text-center">New {index + 1}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload New Photos Button */}
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer">
+                    <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm font-medium">Add Photos</span>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleAddNewPhotos}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    {photoSignedUrls.length + newPhotos.length} photo(s) total
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
               <Button
