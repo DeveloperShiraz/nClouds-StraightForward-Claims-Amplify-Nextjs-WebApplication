@@ -54,6 +54,9 @@ const formSchema = z.object({
     required_error: "Date of incident is required",
   }),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  shingleExposure: z.string()
+    .optional()
+    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0 && parseFloat(val) <= 12), "Shingle exposure must be between 0 and 12 inches"),
   photos: z.array(z.instanceof(File)).optional(),
 });
 
@@ -91,13 +94,14 @@ export function IncidentReportForm() {
       state: "",
       zip: "",
       description: "",
+      shingleExposure: "",
       photos: [],
     },
   });
 
-  const uploadPhotos = async (photos: FileWithPreview[]): Promise<string[]> => {
+  const uploadPhotos = async (photos: FileWithPreview[], reportId: string): Promise<string[]> => {
     const uploadPromises = photos.map(async (photo, index) => {
-      const path = `incident-photos/${Date.now()}-${index}-${photo.name}`;
+      const path = `incident-photos/${reportId}/${Date.now()}-${index}-${photo.name}`;
       try {
         const result = await uploadData({
           path,
@@ -154,30 +158,8 @@ export function IncidentReportForm() {
       
       console.log("✅ Client and models available");
       console.log("Available models:", Object.keys(client.models || {}));
-      
-      // Upload photos if any
-      let photoUrls: string[] = [];
-      
-      if (files.length > 0) {
-        try {
-          console.log("Uploading photos...");
-          console.log("Number of files to upload:", files.length);
-          console.log("File details:", files.map(f => ({ name: f.name, type: f.type, size: f.size })));
-          photoUrls = await uploadPhotos(files);
-          console.log("✅ Photos uploaded successfully!");
-          console.log("Photo URLs:", photoUrls);
-        } catch (storageError: any) {
-          console.error("❌ Photo upload failed!");
-          console.error("Error type:", storageError?.constructor?.name);
-          console.error("Error message:", storageError?.message);
-          console.error("Error details:", storageError);
-          console.error("Full error object:", JSON.stringify(storageError, null, 2));
-          // Continue without photos if storage fails
-          photoUrls = [];
-        }
-      }
 
-      // Prepare incident data
+      // Prepare incident data without photos first
       console.log("Preparing incident data...");
       const incidentData = {
         firstName: data.firstName,
@@ -191,15 +173,16 @@ export function IncidentReportForm() {
         zip: data.zip,
         incidentDate: data.incidentDate.toISOString().split('T')[0], // Convert to date string
         description: data.description,
-        photoUrls: photoUrls,
+        shingleExposure: data.shingleExposure ? parseFloat(data.shingleExposure) : undefined,
+        photoUrls: [],
       };
-      
+
       console.log("Incident data to submit:", JSON.stringify(incidentData, null, 2));
-      
+
       // Create incident report
       console.log("Calling API to create incident report...");
       const result = await client.models.IncidentReport.create(incidentData);
-      
+
       console.log("=== API RESPONSE ===");
       console.log("Full result object:", result);
       console.log("Result.data:", result.data);
@@ -208,10 +191,44 @@ export function IncidentReportForm() {
 
       if (result.data) {
         console.log("✅ Success! Created incident report with ID:", result.data.id);
-        const successMessage = files.length > 0 && photoUrls.length === 0 
-          ? "Incident report submitted successfully! (Photos could not be uploaded due to storage configuration)"
-          : `Incident report submitted successfully! ID: ${result.data.id}`;
-        
+        const reportId = result.data.id;
+
+        // Now upload photos with the report ID
+        let photoUrls: string[] = [];
+        if (files.length > 0) {
+          try {
+            console.log("Uploading photos for report:", reportId);
+            console.log("Number of files to upload:", files.length);
+            console.log("File details:", files.map(f => ({ name: f.name, type: f.type, size: f.size })));
+            photoUrls = await uploadPhotos(files, reportId);
+            console.log("✅ Photos uploaded successfully!");
+            console.log("Photo URLs:", photoUrls);
+
+            // Update report with photo URLs
+            console.log("Updating report with photo URLs...");
+            const updateResult = await client.models.IncidentReport.update({
+              id: reportId,
+              photoUrls: photoUrls,
+            });
+
+            if (updateResult.data) {
+              console.log("✅ Report updated with photos");
+            }
+          } catch (storageError: any) {
+            console.error("❌ Photo upload failed!");
+            console.error("Error type:", storageError?.constructor?.name);
+            console.error("Error message:", storageError?.message);
+            console.error("Error details:", storageError);
+            console.error("Full error object:", JSON.stringify(storageError, null, 2));
+          }
+        }
+
+        const successMessage = files.length > 0 && photoUrls.length === 0
+          ? "Incident report submitted successfully! (Photos could not be uploaded)"
+          : files.length > 0 && photoUrls.length > 0
+          ? `Incident report submitted successfully with ${photoUrls.length} photo(s)! ID: ${reportId}`
+          : `Incident report submitted successfully! ID: ${reportId}`;
+
         showNotification('success', successMessage);
         form.reset();
         setFiles([]);
@@ -570,6 +587,37 @@ export function IncidentReportForm() {
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Shingle Exposure */}
+          <FormField
+            control={form.control}
+            name="shingleExposure"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Shingle Exposure (Optional)</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      max="12"
+                      placeholder="Enter measurement"
+                      {...field}
+                      className="pr-16"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                      inches
+                    </span>
+                  </div>
+                </FormControl>
+                <p className="text-xs text-gray-500">
+                  Height from top to bottom of shingle (0-12 inches)
+                </p>
                 <FormMessage />
               </FormItem>
             )}

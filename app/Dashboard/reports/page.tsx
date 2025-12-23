@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "@/amplify/data/resource";
-import { getUrl } from "aws-amplify/storage";
+import { getUrl, remove } from "aws-amplify/storage";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
 import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download } from "lucide-react";
@@ -24,6 +24,7 @@ interface IncidentReport {
   zip: string;
   incidentDate: string;
   description: string;
+  shingleExposure?: number;
   photoUrls?: string[];
   status?: string;
   submittedAt?: string;
@@ -116,10 +117,30 @@ export default function ReportsPage() {
     setDeletingId(id);
     try {
       console.log(`Deleting incident report with ID: ${id}`);
+
+      // Find the report to get photo URLs
+      const reportToDelete = reports.find(report => report.id === id);
+
+      // Delete photos from S3 first
+      if (reportToDelete?.photoUrls && reportToDelete.photoUrls.length > 0) {
+        console.log(`Deleting ${reportToDelete.photoUrls.length} photos from S3...`);
+        const deletePromises = reportToDelete.photoUrls.map(async (photoPath) => {
+          try {
+            await remove({ path: photoPath });
+            console.log(`✅ Deleted photo: ${photoPath}`);
+          } catch (error) {
+            console.error(`Failed to delete photo ${photoPath}:`, error);
+          }
+        });
+        await Promise.all(deletePromises);
+        console.log("✅ All photos deleted from S3");
+      }
+
+      // Delete the report from DynamoDB
       const result = await client.models.IncidentReport.delete({ id });
 
       if (result.data) {
-        console.log("✅ Successfully deleted incident report");
+        console.log("✅ Successfully deleted incident report from database");
         // Remove from local state
         setReports(reports.filter(report => report.id !== id));
       } else if (result.errors) {
@@ -176,6 +197,22 @@ export default function ReportsPage() {
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatDateOnly = (dateString?: string) => {
+    if (!dateString) return "N/A";
+    try {
+      // Parse date string without time to avoid timezone issues
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
       });
     } catch {
       return dateString;
@@ -296,7 +333,7 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase mb-1">Incident Date</p>
-                  <p className="text-sm text-gray-900">{formatDate(report.incidentDate)}</p>
+                  <p className="text-sm text-gray-900">{formatDateOnly(report.incidentDate)}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase mb-1">Submitted</p>
@@ -308,6 +345,13 @@ export default function ReportsPage() {
                 <p className="text-xs font-medium text-gray-500 uppercase mb-1">Description</p>
                 <p className="text-sm text-gray-900 whitespace-pre-wrap">{report.description}</p>
               </div>
+
+              {report.shingleExposure && (
+                <div className="mb-4">
+                  <p className="text-xs font-medium text-gray-500 uppercase mb-1">Shingle Exposure</p>
+                  <p className="text-sm text-gray-900">{report.shingleExposure} inches</p>
+                </div>
+              )}
 
               {photoUrlsMap[report.id] && photoUrlsMap[report.id].length > 0 && (
                 <div>

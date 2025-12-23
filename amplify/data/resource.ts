@@ -33,6 +33,7 @@ const schema = a.schema({
       zip: a.string().required(),
       incidentDate: a.date().required(),
       description: a.string().required(),
+      shingleExposure: a.float(), // Shingle exposure in inches
       photoUrls: a.string().array(), // Store S3 URLs of uploaded photos
       status: a.enum(["submitted", "in_review", "resolved"]),
       submittedAt: a.datetime(),
