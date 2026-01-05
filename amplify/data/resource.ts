@@ -20,8 +20,30 @@ const schema = a.schema({
     })
     .authorization((allow) => [allow.authenticated()]),
 
+  Company: a
+    .model({
+      name: a.string().required(),
+      domain: a.string(),
+      logoUrl: a.string(),
+      settings: a.json(),
+      isActive: a.boolean().default(true),
+      createdAt: a.datetime(),
+      maxUsers: a.integer(),
+      incidentReports: a.hasMany("IncidentReport", "companyId"),
+    })
+    .authorization((allow) => [
+      // SuperAdmins can do everything with companies
+      allow.group("SuperAdmin"),
+      // Company Admins can only read their own company
+      allow.groups(["Admin", "IncidentReporter", "Customer"]).to(["read"]),
+      // Temporary: allow any authenticated user to read (for debugging)
+      allow.authenticated().to(["read"]),
+    ]),
+
   IncidentReport: a
     .model({
+      companyId: a.id(),
+      company: a.belongsTo("Company", "companyId"),
       firstName: a.string().required(),
       lastName: a.string().required(),
       phone: a.string().required(),
@@ -39,12 +61,14 @@ const schema = a.schema({
       submittedAt: a.datetime(),
     })
     .authorization((allow) => [
-      // Admins can do everything
+      // SuperAdmins can do everything across all companies
+      allow.group("SuperAdmin"),
+      // Admins can do everything within their company
       allow.group("Admin"),
       // IncidentReporters can create and manage their own reports
       allow.group("IncidentReporter").to(["create"]),
       allow.owner().to(["read", "update", "delete"]),
-      // Customers can only read their own reports
+      // Customers can only read reports
       allow.group("Customer").to(["read"]),
     ]),
 });

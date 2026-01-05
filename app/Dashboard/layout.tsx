@@ -4,6 +4,7 @@ import TopBar from "@/components/Topbar";
 import React, { useEffect, useState } from "react";
 import { SidebarProvider } from "@/components/ui/Sidebar";
 import { AppSidebar } from "@/components/App-sidebar";
+import { CompanyProvider } from "@/contexts/CompanyContext";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 export default function DashboardLayout({
@@ -49,21 +50,23 @@ export default function DashboardLayout({
 
   // Only render dashboard layout if authenticated
   return (
-    <SidebarProvider defaultOpen={true}>
-      <AppSidebar />
+    <CompanyProvider>
+      <SidebarProvider defaultOpen={true}>
+        <AppSidebar />
 
-      {/* Main Content */}
-      <div className="flex flex-1 flex-col overflow-auto min-h-screen">
-        {/* Header */}
-        <div className="sticky top-0 z-30 bg-background">
-          <TopBar />
+        {/* Main Content */}
+        <div className="flex flex-1 flex-col overflow-auto min-h-screen">
+          {/* Header */}
+          <div className="sticky top-0 z-30 bg-background">
+            <TopBar />
+          </div>
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-auto calc(100vh - 70px)">
+            {children}
+          </main>
         </div>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto calc(100vh - 70px)">
-          {children}
-        </main>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </CompanyProvider>
   );
 }

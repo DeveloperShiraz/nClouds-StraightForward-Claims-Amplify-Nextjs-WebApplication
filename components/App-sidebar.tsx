@@ -16,6 +16,7 @@ import {
   History,
   FileText,
   Users,
+  Building,
 } from "lucide-react";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import {
@@ -221,14 +222,50 @@ const sidebarStyles = `
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { resolvedTheme } = useTheme();
   const pathname = usePathname();
-  const { role, isLoading, isAdmin, isIncidentReporter } = useUserRole();
+  const { role, isLoading, isSuperAdmin, isAdmin, isIncidentReporter } = useUserRole();
 
   // Define routes based on user role
   const getRoutesByRole = () => {
     if (isLoading) return [];
 
+    if (isSuperAdmin) {
+      // SuperAdmin: Dashboard, Incident Form, Reports, Companies, Users
+      return [
+        {
+          label: "Dashboard",
+          icon: LayoutDashboard,
+          href: "/Dashboard",
+          active: pathname === "/Dashboard",
+        },
+        {
+          label: "Incident Form",
+          icon: FileText,
+          href: "/Dashboard/incident-form",
+          active: pathname === "/Dashboard/incident-form",
+        },
+        {
+          label: "Reports",
+          icon: FileText,
+          href: "/Dashboard/reports",
+          active: pathname === "/Dashboard/reports",
+        },
+        {
+          label: "Companies",
+          icon: Building,
+          href: "/Dashboard/companies",
+          active: pathname === "/Dashboard/companies",
+        },
+        {
+          label: "Users",
+          icon: Users,
+          href: "/Dashboard/users",
+          active: pathname === "/Dashboard/users",
+        },
+      ];
+    }
+
     if (isAdmin) {
-      // Admin: Dashboard, Incident Form, Reports, Users
+      // Admin: Dashboard, Incident Form, Reports, Users (company-scoped)
       return [
         {
           label: "Dashboard",

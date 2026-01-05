@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, groups, sendInvite = true } = body;
+    const { email, groups, sendInvite = true, companyId, companyName } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate groups
-    const validGroups = ["Admin", "IncidentReporter", "Customer"];
+    const validGroups = ["SuperAdmin", "Admin", "IncidentReporter", "Customer"];
     const userGroups = Array.isArray(groups) ? groups : [groups];
 
     for (const group of userGroups) {
@@ -50,20 +50,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Build user attributes
+    const userAttributes = [
+      {
+        Name: "email",
+        Value: email,
+      },
+      {
+        Name: "email_verified",
+        Value: "true",
+      },
+    ];
+
+    // Add company attributes if provided (not required for SuperAdmins)
+    if (companyId) {
+      userAttributes.push({
+        Name: "custom:companyId",
+        Value: companyId,
+      });
+    }
+
+    if (companyName) {
+      userAttributes.push({
+        Name: "custom:companyName",
+        Value: companyName,
+      });
+    }
+
     // Create user
     const createUserCommand = new AdminCreateUserCommand({
       UserPoolId: USER_POOL_ID,
       Username: email,
-      UserAttributes: [
-        {
-          Name: "email",
-          Value: email,
-        },
-        {
-          Name: "email_verified",
-          Value: "true",
-        },
-      ],
+      UserAttributes: userAttributes,
       DesiredDeliveryMediums: sendInvite ? ["EMAIL"] : undefined,
       MessageAction: sendInvite ? undefined : MessageActionType.SUPPRESS,
     });
@@ -87,6 +105,8 @@ export async function POST(request: NextRequest) {
         username: createUserResponse.User?.Username,
         email,
         groups: userGroups,
+        companyId: companyId || null,
+        companyName: companyName || null,
       },
     });
   } catch (error: any) {

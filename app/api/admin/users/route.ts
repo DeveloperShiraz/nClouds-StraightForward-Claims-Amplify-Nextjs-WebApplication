@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
           enabled: user.Enabled,
           createdAt: user.UserCreateDate?.toISOString(),
           groups,
+          companyId: attributes["custom:companyId"] || null,
+          companyName: attributes["custom:companyName"] || null,
         };
       })
     );

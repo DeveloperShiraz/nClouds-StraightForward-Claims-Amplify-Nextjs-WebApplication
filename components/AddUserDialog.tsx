@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { useUserRole } from "@/lib/auth/useUserRole";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface AddUserDialogProps {
   open: boolean;
@@ -33,8 +35,11 @@ export function AddUserDialog({
   onOpenChange,
   onUserCreated,
 }: AddUserDialogProps) {
+  const { isSuperAdmin, companyId: userCompanyId, companyName: userCompanyName } = useUserRole();
+  const { companies } = useCompany();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("Customer");
+  const [companyId, setCompanyId] = useState<string>("");
   const [sendInvite, setSendInvite] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +50,12 @@ export function AddUserDialog({
     setLoading(true);
 
     try {
+      // Determine which company to assign
+      const targetCompanyId = isSuperAdmin ? companyId : userCompanyId;
+      const targetCompanyName = isSuperAdmin
+        ? companies.find(c => c.id === companyId)?.name
+        : userCompanyName;
+
       const response = await fetch("/api/admin/users/create", {
         method: "POST",
         headers: {
@@ -54,6 +65,8 @@ export function AddUserDialog({
           email,
           groups: [role],
           sendInvite,
+          companyId: targetCompanyId,
+          companyName: targetCompanyName,
         }),
       });
 
@@ -66,6 +79,7 @@ export function AddUserDialog({
       // Reset form
       setEmail("");
       setRole("Customer");
+      setCompanyId("");
       setSendInvite(true);
       setError(null);
 
@@ -106,6 +120,30 @@ export function AddUserDialog({
               />
             </div>
 
+            {/* Company Selection (SuperAdmin only) */}
+            {isSuperAdmin && (
+              <div className="grid gap-2">
+                <Label htmlFor="company">Company</Label>
+                <Select value={companyId} onValueChange={setCompanyId} disabled={loading}>
+                  <SelectTrigger id="company">
+                    <SelectValue placeholder="Select a company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  {role === "SuperAdmin"
+                    ? "Optional for SuperAdmins"
+                    : "Required for all other roles"}
+                </p>
+              </div>
+            )}
+
             {/* Role Field */}
             <div className="grid gap-2">
               <Label htmlFor="role">Role</Label>
@@ -114,11 +152,21 @@ export function AddUserDialog({
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
+                  {isSuperAdmin && (
+                    <SelectItem value="SuperAdmin">
+                      <div className="flex flex-col">
+                        <span className="font-medium">SuperAdmin</span>
+                        <span className="text-xs text-gray-500">
+                          Global access to all companies
+                        </span>
+                      </div>
+                    </SelectItem>
+                  )}
                   <SelectItem value="Admin">
                     <div className="flex flex-col">
                       <span className="font-medium">Admin</span>
                       <span className="text-xs text-gray-500">
-                        Full access to all features
+                        {isSuperAdmin ? "Company-scoped admin access" : "Full access to all features"}
                       </span>
                     </div>
                   </SelectItem>

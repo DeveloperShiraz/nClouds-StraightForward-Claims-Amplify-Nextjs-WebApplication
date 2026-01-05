@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { AddUserDialog } from "@/components/AddUserDialog";
 import { EditUserRoleDialog } from "@/components/EditUserRoleDialog";
 import { Badge } from "@/components/ui/Badge";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface User {
   username: string;
@@ -27,19 +28,23 @@ interface User {
   enabled: boolean;
   createdAt: string;
   groups: string[];
+  companyId?: string | null;
+  companyName?: string | null;
 }
 
 type RoleFilter = "all" | "Admin" | "IncidentReporter" | "Customer";
 
 export default function UsersPage() {
   const router = useRouter();
-  const { isAdmin, isLoading: roleLoading, userEmail } = useUserRole();
+  const { isSuperAdmin, isAdmin, isLoading: roleLoading, userEmail, companyId: userCompanyId } = useUserRole();
+  const { companies } = useCompany();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
 
   // Edit role dialog state
   const [editRoleDialogOpen, setEditRoleDialogOpen] = useState(false);
@@ -49,12 +54,12 @@ export default function UsersPage() {
     currentRole: string;
   } | null>(null);
 
-  // Redirect if not admin
+  // Redirect if not admin or superadmin
   useEffect(() => {
-    if (!roleLoading && !isAdmin) {
+    if (!roleLoading && !isAdmin && !isSuperAdmin) {
       router.push("/Dashboard");
     }
-  }, [isAdmin, roleLoading, router]);
+  }, [isAdmin, isSuperAdmin, roleLoading, router]);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -78,10 +83,10 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isSuperAdmin) {
       fetchUsers();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isSuperAdmin]);
 
   const handleDeleteUser = async (username: string, email: string) => {
     // Prevent deleting yourself
@@ -133,10 +138,27 @@ export default function UsersPage() {
     setEditRoleDialogOpen(true);
   };
 
-  // Filter users based on role filter
+  // Filter users based on role filter and company filter
   const filteredUsers = users.filter((user) => {
-    if (roleFilter === "all") return true;
-    return user.groups.includes(roleFilter);
+    // Role filter
+    if (roleFilter !== "all" && !user.groups.includes(roleFilter)) {
+      return false;
+    }
+
+    // Company filter (SuperAdmin only)
+    if (isSuperAdmin && companyFilter !== "all") {
+      if (companyFilter === "no-company") {
+        return !user.companyId;
+      }
+      return user.companyId === companyFilter;
+    }
+
+    // Regular admins only see their company users
+    if (!isSuperAdmin && userCompanyId) {
+      return user.companyId === userCompanyId || !user.companyId;
+    }
+
+    return true;
   });
 
   // Calculate role counts
@@ -259,6 +281,28 @@ export default function UsersPage() {
         </button>
       </div>
 
+      {/* Company Filter (SuperAdmin only) */}
+      {isSuperAdmin && companies.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Filter by Company
+          </label>
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="block w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">All Companies</option>
+            <option value="no-company">No Company Assigned</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -272,14 +316,17 @@ export default function UsersPage() {
                   : `Showing ${filteredUsers.length} ${roleFilter === "IncidentReporter" ? "incident reporters" : roleFilter.toLowerCase() + "s"}`}
               </p>
             </div>
-            {roleFilter !== "all" && (
+            {(roleFilter !== "all" || companyFilter !== "all") && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setRoleFilter("all")}
+                onClick={() => {
+                  setRoleFilter("all");
+                  setCompanyFilter("all");
+                }}
               >
                 <Filter className="w-4 h-4 mr-2" />
-                Clear Filter
+                Clear All Filters
               </Button>
             )}
           </div>
@@ -321,6 +368,9 @@ export default function UsersPage() {
                       Email
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                      Company
+                    </th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
                       Role
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
@@ -351,6 +401,17 @@ export default function UsersPage() {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        {user.companyName ? (
+                          <Badge variant="outline" className="text-xs">
+                            {user.companyName}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">
+                            No company
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">

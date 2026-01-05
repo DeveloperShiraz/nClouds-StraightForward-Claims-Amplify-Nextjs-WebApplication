@@ -10,7 +10,7 @@ export const auth = defineAuth({
     email: true,
     // add social providers
   },
-  groups: ["Admin", "IncidentReporter", "Customer"],
+  groups: ["SuperAdmin", "Admin", "IncidentReporter", "Customer"],
   /**
    * enable multifactor authentication
    * @see https://docs.amplify.aws/gen2/build-a-backend/auth/manage-mfa
@@ -27,5 +27,7 @@ export const auth = defineAuth({
     //   mutable: true,
     //   required: false,
     // },
+    // Note: Custom attributes (custom:companyId, custom:companyName) must be added
+    // after initial deployment using scripts/add-cognito-attributes.ts
   },
 });
