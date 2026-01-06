@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getS3ClientConfig, getAWSRegion, getS3BucketName } from "@/lib/aws-config";
+import { getS3ClientConfig, getAWSRegion } from "@/lib/aws-config";
+import outputs from "@/amplify_outputs.json";
 
-const BUCKET_NAME = getS3BucketName();
+const BUCKET_NAME = outputs.storage.bucket_name;
 
 const s3Client = new S3Client(getS3ClientConfig());
 

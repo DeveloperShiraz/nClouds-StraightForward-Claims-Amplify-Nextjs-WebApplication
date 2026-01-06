@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDynamoDBClientConfig, getIncidentReportTableName, getCompanyTableName } from "@/lib/aws-config";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "crypto";
-
-const client = new DynamoDBClient(getDynamoDBClientConfig());
-const docClient = DynamoDBDocumentClient.from(client);
-const INCIDENT_TABLE = getIncidentReportTableName();
-const COMPANY_TABLE = getCompanyTableName();
+import { createServerClient } from "@/lib/amplify-server-utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,21 +14,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const companyCommand = new GetCommand({
-      TableName: COMPANY_TABLE,
-      Key: { id: companyId },
-    });
+    const client = createServerClient();
 
-    const companyResponse = await docClient.send(companyCommand);
+    // Fetch company to validate it exists and is active
+    const { data: company, errors: companyErrors } = await client.models.Company.get({ id: companyId });
 
-    if (!companyResponse.Item) {
+    if (companyErrors) {
+      console.error("Errors fetching company:", companyErrors);
+      return NextResponse.json(
+        { error: "Failed to validate company", details: companyErrors },
+        { status: 500 }
+      );
+    }
+
+    if (!company) {
       return NextResponse.json(
         { error: "Invalid company" },
         { status: 404 }
       );
     }
 
-    if (companyResponse.Item.isActive === false) {
+    if (company.isActive === false) {
       return NextResponse.json(
         { error: "This company is not currently accepting incident reports" },
         { status: 403 }
@@ -44,27 +42,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Create incident report
-    const report = {
-      id: randomUUID(),
+    const { data: report, errors } = await client.models.IncidentReport.create({
       ...reportData,
       companyId,
-      companyName: companyResponse.Item.name,
+      companyName: company.name,
       status: "submitted",
       submittedAt: new Date().toISOString(),
       submittedBy: reportData.email || "Public Form Submission",
-    };
-
-    const putCommand = new PutCommand({
-      TableName: INCIDENT_TABLE,
-      Item: report,
     });
 
-    await docClient.send(putCommand);
+    if (errors) {
+      console.error("Errors creating incident report:", errors);
+      return NextResponse.json(
+        { error: "Failed to submit incident report", details: errors },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {
         success: true,
-        reportId: report.id,
+        reportId: report?.id,
         message: "Incident report submitted successfully",
       },
       { status: 201 }

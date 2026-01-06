@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDynamoDBClientConfig, getCompanyTableName } from "@/lib/aws-config";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
-
-const client = new DynamoDBClient(getDynamoDBClientConfig());
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = getCompanyTableName();
+import { createServerClient } from "@/lib/amplify-server-utils";
 
 export async function GET(
   request: NextRequest,
@@ -14,18 +8,22 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const command = new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { id },
-    });
+    const client = createServerClient();
+    const { data: company, errors } = await client.models.Company.get({ id });
 
-    const response = await docClient.send(command);
+    if (errors) {
+      console.error("Errors fetching company:", errors);
+      return NextResponse.json(
+        { error: "Failed to fetch company", details: errors },
+        { status: 500 }
+      );
+    }
 
-    if (!response.Item) {
+    if (!company) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ company: response.Item });
+    return NextResponse.json({ company });
   } catch (error: any) {
     console.error("Error fetching company:", error);
     return NextResponse.json(
@@ -43,38 +41,32 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Build update expression dynamically
-    const updateExpressionParts: string[] = [];
-    const expressionAttributeNames: Record<string, string> = {};
-    const expressionAttributeValues: Record<string, any> = {};
-
-    Object.keys(body).forEach((key, index) => {
-      if (key !== "id") {
-        updateExpressionParts.push(`#field${index} = :value${index}`);
-        expressionAttributeNames[`#field${index}`] = key;
-        expressionAttributeValues[`:value${index}`] = body[key];
-      }
-    });
-
-    if (updateExpressionParts.length === 0) {
+    if (Object.keys(body).filter(key => key !== "id").length === 0) {
       return NextResponse.json(
         { error: "No fields to update" },
         { status: 400 }
       );
     }
 
-    const command = new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: { id },
-      UpdateExpression: `SET ${updateExpressionParts.join(", ")}`,
-      ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues,
-      ReturnValues: "ALL_NEW",
+    const client = createServerClient();
+
+    // Remove id from body if present
+    const { id: _, ...updateData } = body;
+
+    const { data: company, errors } = await client.models.Company.update({
+      id,
+      ...updateData,
     });
 
-    const response = await docClient.send(command);
+    if (errors) {
+      console.error("Errors updating company:", errors);
+      return NextResponse.json(
+        { error: "Failed to update company", details: errors },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ company: response.Attributes });
+    return NextResponse.json({ company });
   } catch (error: any) {
     console.error("Error updating company:", error);
     return NextResponse.json(
@@ -94,12 +86,16 @@ export async function DELETE(
     // TODO: Add validation to prevent deletion if company has users or reports
     // You may want to implement soft deletion instead
 
-    const command = new DeleteCommand({
-      TableName: TABLE_NAME,
-      Key: { id },
-    });
+    const client = createServerClient();
+    const { errors } = await client.models.Company.delete({ id });
 
-    await docClient.send(command);
+    if (errors) {
+      console.error("Errors deleting company:", errors);
+      return NextResponse.json(
+        { error: "Failed to delete company", details: errors },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true, message: "Company deleted successfully" });
   } catch (error: any) {

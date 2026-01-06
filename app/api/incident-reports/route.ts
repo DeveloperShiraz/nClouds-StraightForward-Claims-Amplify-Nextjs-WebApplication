@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "crypto";
-import { getDynamoDBClientConfig, getIncidentReportTableName } from "@/lib/aws-config";
-
-const client = new DynamoDBClient(getDynamoDBClientConfig());
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = getIncidentReportTableName();
+import { createServerClient } from "@/lib/amplify-server-utils";
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("Fetching incident reports from DynamoDB...");
+    console.log("Fetching incident reports from Amplify Data...");
 
-    const command = new ScanCommand({
-      TableName: TABLE_NAME,
-    });
+    const client = createServerClient();
+    const { data: reports, errors } = await client.models.IncidentReport.list();
 
-    const response = await docClient.send(command);
-    const reports = response.Items || [];
+    if (errors) {
+      console.error("Errors fetching incident reports:", errors);
+      return NextResponse.json(
+        { error: "Failed to fetch incident reports", details: errors },
+        { status: 500 }
+      );
+    }
 
-    console.log(`Found ${reports.length} incident reports`);
-    return NextResponse.json({ reports });
+    console.log(`Found ${reports?.length || 0} incident reports`);
+    return NextResponse.json({ reports: reports || [] });
   } catch (error: any) {
     console.error("Exception fetching incident reports:", error);
     console.error("Error stack:", error.stack);
@@ -62,37 +59,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const report = {
-      id: randomUUID(),
+    const client = createServerClient();
+
+    const { data: report, errors } = await client.models.IncidentReport.create({
       claimNumber,
       firstName,
       lastName,
       phone,
       email,
       address,
-      apartment: apartment || "",
+      apartment: apartment || undefined,
       city,
       state,
       zip,
       incidentDate,
       description,
-      shingleExposure: shingleExposure || null,
-      photoUrls: photoUrls || [],
+      shingleExposure: shingleExposure || undefined,
+      photoUrls: photoUrls || undefined,
       status: "submitted",
       submittedAt: new Date().toISOString(),
-      companyId: companyId || null,
-      companyName: companyName || null,
-      submittedBy: submittedBy || null,
-    };
-
-    const command = new PutCommand({
-      TableName: TABLE_NAME,
-      Item: report,
+      companyId: companyId || undefined,
+      companyName: companyName || undefined,
+      submittedBy: submittedBy || undefined,
     });
 
-    await docClient.send(command);
+    if (errors) {
+      console.error("Errors creating incident report:", errors);
+      return NextResponse.json(
+        { error: "Failed to create incident report", details: errors },
+        { status: 500 }
+      );
+    }
 
-    console.log("Incident report created:", report.id);
+    console.log("Incident report created:", report?.id);
     return NextResponse.json({ report }, { status: 201 });
   } catch (error: any) {
     console.error("Error creating incident report:", error);
