@@ -34,6 +34,10 @@ import {
 } from "@/components/ui/Select";
 
 const editIncidentReportSchema = z.object({
+  claimNumber: z.string()
+    .min(1, "Claim number is required")
+    .max(50, "Claim number must be 50 characters or less")
+    .regex(/^[a-zA-Z0-9\-_]+$/, "Claim number can only contain letters, numbers, hyphens, and underscores"),
   firstName: z.string().min(2, "First name must be at least 2 characters"),
   lastName: z.string().min(2, "Last name must be at least 2 characters"),
   phone: z.string().regex(/^\d{10}$/, "Phone must be 10 digits"),
@@ -56,6 +60,7 @@ type EditIncidentReportFormData = z.infer<typeof editIncidentReportSchema>;
 
 interface IncidentReport {
   id: string;
+  claimNumber: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -97,6 +102,7 @@ export function EditIncidentReportModal({
   const form = useForm<EditIncidentReportFormData>({
     resolver: zodResolver(editIncidentReportSchema),
     defaultValues: {
+      claimNumber: report.claimNumber,
       firstName: report.firstName,
       lastName: report.lastName,
       phone: report.phone,
@@ -117,6 +123,7 @@ export function EditIncidentReportModal({
     if (isOpen) {
       // Reset form with report data when modal opens
       form.reset({
+        claimNumber: report.claimNumber,
         firstName: report.firstName,
         lastName: report.lastName,
         phone: report.phone,
@@ -253,6 +260,7 @@ export function EditIncidentReportModal({
 
       // Step 4: Update the report in DynamoDB via API
       const updateData = {
+        claimNumber: data.claimNumber,
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone.replace(/\D/g, ''),
@@ -320,6 +328,25 @@ export function EditIncidentReportModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 space-y-6">
+            {/* Claim Number */}
+            <FormField
+              control={form.control}
+              name="claimNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Claim Number</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="CLM-2024-001"
+                      maxLength={50}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}

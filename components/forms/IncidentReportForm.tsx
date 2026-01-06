@@ -32,6 +32,10 @@ import { useUserRole } from "@/lib/auth/useUserRole";
 
 // Form validation schema
 const formSchema = z.object({
+  claimNumber: z.string()
+    .min(1, "Claim number is required")
+    .max(50, "Claim number must be 50 characters or less")
+    .regex(/^[a-zA-Z0-9\-_]+$/, "Claim number can only contain letters, numbers, hyphens, and underscores"),
   firstName: z.string()
     .min(1, "First name is required")
     .max(50, "First name must be 50 characters or less")
@@ -123,6 +127,7 @@ export function IncidentReportForm({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      claimNumber: "",
       firstName: "",
       lastName: "",
       phone: "",
@@ -138,9 +143,13 @@ export function IncidentReportForm({
     },
   });
 
-  const uploadPhotos = async (photos: FileWithPreview[], reportId: string): Promise<string[]> => {
+  const uploadPhotos = async (photos: FileWithPreview[], claimNumber: string, companyNameForPath: string): Promise<string[]> => {
+    // Sanitize company name for use in file path (remove special characters, spaces)
+    const sanitizedCompanyName = companyNameForPath.replace(/[^a-zA-Z0-9]/g, '_');
+
     const uploadPromises = photos.map(async (photo, index) => {
-      const path = `incident-photos/${reportId}/${Date.now()}-${index}-${photo.name}`;
+      const timestamp = Date.now();
+      const path = `incident-photos/${sanitizedCompanyName}/${claimNumber}/${timestamp}-${index}-${photo.name}`;
       try {
         const result = await uploadData({
           path,
@@ -192,6 +201,7 @@ export function IncidentReportForm({
       // Prepare incident data
       console.log("Preparing incident data...");
       const incidentData = {
+        claimNumber: data.claimNumber,
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone.replace(/\D/g, ''), // Store only digits
@@ -241,10 +251,11 @@ export function IncidentReportForm({
       let photoUrls: string[] = [];
       if (files.length > 0) {
         try {
-          console.log("Uploading photos for report:", reportId);
+          console.log("Uploading photos for claim:", data.claimNumber);
+          console.log("Company:", companyName);
           console.log("Number of files to upload:", files.length);
           console.log("File details:", files.map(f => ({ name: f.name, type: f.type, size: f.size })));
-          photoUrls = await uploadPhotos(files, reportId);
+          photoUrls = await uploadPhotos(files, data.claimNumber, companyName || "UnknownCompany");
           console.log("✅ Photos uploaded successfully!");
           console.log("Photo URLs:", photoUrls);
 
@@ -390,6 +401,25 @@ export function IncidentReportForm({
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Claim Number */}
+          <FormField
+            control={form.control}
+            name="claimNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Claim Number</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter claim number (e.g., CLM-2024-001)"
+                    maxLength={50}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* First Name / Last Name Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
@@ -399,7 +429,11 @@ export function IncidentReportForm({
                 <FormItem>
                   <FormLabel>First Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter first name" {...field} />
+                    <Input
+                      placeholder="Enter first name"
+                      maxLength={50}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -412,7 +446,11 @@ export function IncidentReportForm({
                 <FormItem>
                   <FormLabel>Last Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter last name" {...field} />
+                    <Input
+                      placeholder="Enter last name"
+                      maxLength={50}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -19,6 +19,7 @@ import {
 
 interface IncidentReport {
   id: string;
+  claimNumber: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -363,6 +364,9 @@ export default function ReportsPage() {
                     {report.firstName} {report.lastName}
                   </h3>
                   <p className="text-sm text-gray-600">
+                    Claim #: <span className="font-mono text-xs font-semibold">{report.claimNumber}</span>
+                  </p>
+                  <p className="text-sm text-gray-500">
                     ID: <span className="font-mono text-xs">{report.id}</span>
                   </p>
                   {/* Show company name for SuperAdmin */}
