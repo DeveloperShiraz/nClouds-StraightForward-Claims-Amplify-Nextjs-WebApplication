@@ -9,7 +9,7 @@ import { Copy, CheckCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 const IncidentFormPage = () => {
-  const { isAdmin, isSuperAdmin, companyId, companyName } = useUserRole();
+  const { isAdmin, isSuperAdmin, isIncidentReporter, companyId, companyName } = useUserRole();
   const [copied, setCopied] = useState(false);
 
   const copyPublicLink = () => {
@@ -39,8 +39,8 @@ const IncidentFormPage = () => {
         Submit Incident Report
       </Heading>
 
-      {/* Shareable Link Card for Admins */}
-      {(isAdmin || isSuperAdmin) && companyId && (
+      {/* Shareable Link Card for Admins and Incident Reporters */}
+      {(isAdmin || isSuperAdmin || isIncidentReporter) && companyId && (
         <Card className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">

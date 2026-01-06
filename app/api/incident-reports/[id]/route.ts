@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDynamoDBClientConfig, getIncidentReportTableName } from "@/lib/aws-config";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+const client = new DynamoDBClient(getDynamoDBClientConfig());
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = "IncidentReport-manual";
+const TABLE_NAME = getIncidentReportTableName();
 
 export async function GET(
   request: NextRequest,

@@ -29,7 +29,7 @@ const schema = a.schema({
       isActive: a.boolean().default(true),
       createdAt: a.datetime(),
       maxUsers: a.integer(),
-      incidentReports: a.hasMany("IncidentReport", "companyId"),
+      // Removed hasMany relationship to allow optional companyId in IncidentReport
     })
     .authorization((allow) => [
       // SuperAdmins can do everything with companies
@@ -42,8 +42,10 @@ const schema = a.schema({
 
   IncidentReport: a
     .model({
-      companyId: a.id(),
-      company: a.belongsTo("Company", "companyId"),
+      claimNumber: a.string().required(),
+      companyId: a.id(), // Optional - allows standalone reports not tied to a company
+      // Removed belongsTo relationship to allow null companyId
+      companyName: a.string(),
       firstName: a.string().required(),
       lastName: a.string().required(),
       phone: a.string().required(),
@@ -59,6 +61,7 @@ const schema = a.schema({
       photoUrls: a.string().array(), // Store S3 URLs of uploaded photos
       status: a.enum(["submitted", "in_review", "resolved"]),
       submittedAt: a.datetime(),
+      submittedBy: a.string(),
     })
     .authorization((allow) => [
       // SuperAdmins can do everything across all companies

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDynamoDBClientConfig, getCompanyTableName } from "@/lib/aws-config";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+const client = new DynamoDBClient(getDynamoDBClientConfig());
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = "Company-manual";
+const TABLE_NAME = getCompanyTableName();
 
 export async function GET(
   request: NextRequest,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCognitoClientConfig, getUserPoolId } from "@/lib/aws-config";
 import {
   CognitoIdentityProviderClient,
   ListUsersCommand,
@@ -6,15 +7,10 @@ import {
   AdminListGroupsForUserCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
-const USER_POOL_ID = process.env.AMPLIFY_AUTH_USERPOOL_ID;
-const AWS_REGION = process.env.AWS_REGION || "us-east-1";
+const USER_POOL_ID = getUserPoolId();
 
 const client = new CognitoIdentityProviderClient({
-  region: AWS_REGION,
-  credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY ? {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  } : undefined,
+  ...getCognitoClientConfig(),
 });
 
 export async function GET(request: NextRequest) {

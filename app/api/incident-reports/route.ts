@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
+import { getDynamoDBClientConfig, getIncidentReportTableName } from "@/lib/aws-config";
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+const client = new DynamoDBClient(getDynamoDBClientConfig());
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = "IncidentReport-manual";
+const TABLE_NAME = getIncidentReportTableName();
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      claimNumber,
       firstName,
       lastName,
       phone,
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!firstName || !lastName || !phone || !email || !address || !city || !state || !zip || !incidentDate || !description) {
+    if (!claimNumber || !firstName || !lastName || !phone || !email || !address || !city || !state || !zip || !incidentDate || !description) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest) {
 
     const report = {
       id: randomUUID(),
+      claimNumber,
       firstName,
       lastName,
       phone,

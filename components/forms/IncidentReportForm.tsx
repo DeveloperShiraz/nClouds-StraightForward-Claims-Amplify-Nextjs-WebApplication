@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,11 +27,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/auth/useUserRole";
 
 // Form validation schema
 const formSchema = z.object({
+  companyId: z.string().optional(), // For SuperAdmin company selection
   claimNumber: z.string()
     .min(1, "Claim number is required")
     .max(50, "Claim number must be 50 characters or less")
@@ -105,7 +113,7 @@ export function IncidentReportForm({
   companyName: propCompanyName,
   onSuccess,
 }: IncidentReportFormProps = {}) {
-  const { companyId: userCompanyId, companyName: userCompanyName, userEmail } = useUserRole();
+  const { companyId: userCompanyId, companyName: userCompanyName, userEmail, isSuperAdmin } = useUserRole();
 
   // Use prop values in public mode, otherwise use user values
   const companyId = publicMode ? propCompanyId : userCompanyId;
@@ -118,15 +126,37 @@ export function IncidentReportForm({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [companies, setCompanies] = useState<Array<{id: string, name: string}>>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000); // Auto-hide after 5 seconds
   };
 
+  // Fetch companies for SuperAdmins
+  useEffect(() => {
+    if (isSuperAdmin && !publicMode) {
+      setLoadingCompanies(true);
+      fetch('/api/admin/companies')
+        .then(res => res.json())
+        .then(data => {
+          if (data.companies) {
+            setCompanies(data.companies);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching companies:", error);
+          showNotification('error', 'Failed to load companies list');
+        })
+        .finally(() => setLoadingCompanies(false));
+    }
+  }, [isSuperAdmin, publicMode]);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      companyId: "",
       claimNumber: "",
       firstName: "",
       lastName: "",
@@ -150,15 +180,37 @@ export function IncidentReportForm({
     const uploadPromises = photos.map(async (photo, index) => {
       const timestamp = Date.now();
       const path = `incident-photos/${sanitizedCompanyName}/${claimNumber}/${timestamp}-${index}-${photo.name}`;
+
       try {
-        const result = await uploadData({
-          path,
-          data: photo,
-          options: {
-            contentType: photo.type,
-          },
-        }).result;
-        return result.path;
+        // Use server-side upload for public mode (unauthenticated users)
+        if (publicMode) {
+          const formData = new FormData();
+          formData.append("file", photo);
+          formData.append("path", path);
+
+          const response = await fetch("/api/upload/photos", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Upload failed");
+          }
+
+          const result = await response.json();
+          return result.path;
+        } else {
+          // Use Amplify Storage for authenticated users
+          const result = await uploadData({
+            path,
+            data: photo,
+            options: {
+              contentType: photo.type,
+            },
+          }).result;
+          return result.path;
+        }
       } catch (error) {
         console.error("Error uploading photo:", error);
         throw error;
@@ -174,6 +226,13 @@ export function IncidentReportForm({
       console.log("=== FORM SUBMISSION START ===");
       console.log("Submitting form data:", data);
       console.log("Public mode:", publicMode);
+
+      // Validate that SuperAdmin has selected a company
+      if (isSuperAdmin && !publicMode && !data.companyId) {
+        showNotification('error', 'Please select a company before submitting');
+        setIsSubmitting(false);
+        return;
+      }
 
       // Verify authentication only if not in public mode
       let session;
@@ -200,6 +259,26 @@ export function IncidentReportForm({
 
       // Prepare incident data
       console.log("Preparing incident data...");
+
+      // Determine company ID and name based on context
+      let finalCompanyId: string | null;
+      let finalCompanyName: string | null;
+
+      if (publicMode) {
+        // Public mode: use company from shareable link
+        finalCompanyId = propCompanyId || null;
+        finalCompanyName = propCompanyName || null;
+      } else if (isSuperAdmin && data.companyId) {
+        // SuperAdmin: use selected company from dropdown
+        finalCompanyId = data.companyId;
+        const selectedCompany = companies.find(c => c.id === data.companyId);
+        finalCompanyName = selectedCompany?.name || null;
+      } else {
+        // Regular users: use their assigned company
+        finalCompanyId = userCompanyId || null;
+        finalCompanyName = userCompanyName || null;
+      }
+
       const incidentData = {
         claimNumber: data.claimNumber,
         firstName: data.firstName,
@@ -215,8 +294,8 @@ export function IncidentReportForm({
         description: data.description,
         shingleExposure: data.shingleExposure ? parseFloat(data.shingleExposure) : undefined,
         photoUrls: [],
-        companyId: companyId || null,
-        companyName: companyName || null,
+        companyId: finalCompanyId,
+        companyName: finalCompanyName,
         submittedBy: publicMode ? data.email : (userEmail || currentUser?.username),
       };
 
@@ -252,10 +331,10 @@ export function IncidentReportForm({
       if (files.length > 0) {
         try {
           console.log("Uploading photos for claim:", data.claimNumber);
-          console.log("Company:", companyName);
+          console.log("Company:", finalCompanyName);
           console.log("Number of files to upload:", files.length);
           console.log("File details:", files.map(f => ({ name: f.name, type: f.type, size: f.size })));
-          photoUrls = await uploadPhotos(files, data.claimNumber, companyName || "UnknownCompany");
+          photoUrls = await uploadPhotos(files, data.claimNumber, finalCompanyName || "UnknownCompany");
           console.log("✅ Photos uploaded successfully!");
           console.log("Photo URLs:", photoUrls);
 
@@ -401,6 +480,38 @@ export function IncidentReportForm({
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Company Selection - Only for SuperAdmin */}
+          {isSuperAdmin && !publicMode && (
+            <FormField
+              control={form.control}
+              name="companyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Select Company *</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={loadingCompanies}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select a company"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           {/* Claim Number */}
           <FormField
             control={form.control}

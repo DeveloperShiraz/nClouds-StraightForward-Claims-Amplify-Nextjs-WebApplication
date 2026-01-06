@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDynamoDBClientConfig, getIncidentReportTableName, getCompanyTableName } from "@/lib/aws-config";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+const client = new DynamoDBClient(getDynamoDBClientConfig());
 const docClient = DynamoDBDocumentClient.from(client);
-const INCIDENT_TABLE = "IncidentReport-manual";
-const COMPANY_TABLE = "Company-manual";
+const INCIDENT_TABLE = getIncidentReportTableName();
+const COMPANY_TABLE = getCompanyTableName();
 
 export async function POST(request: NextRequest) {
   try {

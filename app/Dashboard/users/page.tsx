@@ -167,9 +167,18 @@ export default function UsersPage() {
   });
 
   // Calculate role counts (excluding SuperAdmins for non-SuperAdmin users)
+  // For regular admins, only count users in their company
   const visibleUsers = isSuperAdmin
     ? users
-    : users.filter((u) => !u.groups.includes("SuperAdmin"));
+    : users.filter((u) => {
+        // Exclude SuperAdmins
+        if (u.groups.includes("SuperAdmin")) return false;
+        // Only include users from the same company
+        if (userCompanyId) {
+          return u.companyId === userCompanyId || !u.companyId;
+        }
+        return true;
+      });
 
   const adminCount = visibleUsers.filter((u) => u.groups.includes("Admin")).length;
   const incidentReporterCount = visibleUsers.filter((u) =>

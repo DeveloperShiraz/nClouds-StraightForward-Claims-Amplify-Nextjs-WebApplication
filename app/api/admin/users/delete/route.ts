@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCognitoClientConfig, getUserPoolId } from "@/lib/aws-config";
 import {
   CognitoIdentityProviderClient,
   AdminDeleteUserCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 const client = new CognitoIdentityProviderClient({
-  region: process.env.AWS_REGION || "us-east-1",
+  ...getCognitoClientConfig(),
 });
 
-const USER_POOL_ID = process.env.AMPLIFY_AUTH_USERPOOL_ID;
+const USER_POOL_ID = getUserPoolId();
 
 export async function DELETE(request: NextRequest) {
   try {
