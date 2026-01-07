@@ -14,7 +14,7 @@ const backend = defineBackend({
 const { cfnUserPool } = backend.auth.resources.cfnResources;
 
 // Pass the User Pool ID to the admin actions function
-backend.adminActions.resources.lambda.addEnvironment(
+(backend.adminActions.resources.lambda as any).addEnvironment(
   "AMPLIFY_AUTH_USERPOOL_ID",
   cfnUserPool.ref
 );
