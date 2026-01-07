@@ -35,6 +35,7 @@ export const getAdminActionsFunctionName = () => {
 
 export const getAWSCredentials = () => {
   // 1. Check for manual overrides (User requested "APP_" prefix)
+  // This is primarily for local development testing against a real AWS backend
   if (process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY) {
     return {
       accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID,
@@ -43,17 +44,8 @@ export const getAWSCredentials = () => {
     };
   }
 
-  // 2. Check for standard environment variables (Local use or explicitly set in console)
-  // IMPORTANT: Must include sessionToken if present (required for IAM Role / Temporary Creds)
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-    return {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      sessionToken: process.env.AWS_SESSION_TOKEN,
-    };
-  }
-
-  // 3. Return undefined to allow SDK's default provider chain (EC2/Lambda Instance Profile etc.)
+  // 2. Return undefined to allow the SDK's Default Credential Provider Chain
+  // This is the most robust way in production (Lambda Roles, EC2 Roles, etc.)
   return undefined;
 };
 

@@ -40,9 +40,10 @@ if (computeLambda) {
   backend.adminActions.resources.lambda.grantInvoke(computeLambda);
 }
 
-// Expose the function name to the application via amplify_outputs.json
+// Expose the function name and some debug flags to the application
 backend.addOutput({
   custom: {
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
+    debug_computeLambdaFound: !!computeLambda,
   },
 });

@@ -6,11 +6,24 @@ const lambdaClient = new LambdaClient(getCognitoClientConfig());
 const FUNCTION_NAME = getAdminActionsFunctionName();
 
 export async function POST(request: NextRequest) {
+  const debugInfo: any = {
+    functionName: FUNCTION_NAME,
+    hasFunctionName: !!FUNCTION_NAME,
+    region: getCognitoClientConfig().region,
+    hasManualCredentials: !!getCognitoClientConfig().credentials,
+    env: {
+      hasAwsKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasAwsSecret: !!process.env.AWS_SECRET_ACCESS_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      lambdaName: process.env.AWS_LAMBDA_FUNCTION_NAME || "Not a Lambda",
+    }
+  };
+
   try {
     if (!FUNCTION_NAME) {
       console.error("ADMIN_ACTIONS_FUNCTION_NAME not configured");
       return NextResponse.json(
-        { error: "Admin Actions Function not configured" },
+        { error: "Admin Actions Function not configured", debug: debugInfo },
         { status: 500 }
       );
     }
@@ -99,7 +112,8 @@ export async function POST(request: NextRequest) {
       {
         error: error.message || "Failed to create user",
         code: errorName,
-        details: "See server logs for more information"
+        details: "See server logs for more information",
+        debug: debugInfo
       },
       { status: 500 }
     );

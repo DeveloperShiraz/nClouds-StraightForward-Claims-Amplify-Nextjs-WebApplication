@@ -6,11 +6,25 @@ const lambdaClient = new LambdaClient(getCognitoClientConfig());
 const FUNCTION_NAME = getAdminActionsFunctionName();
 
 export async function GET(request: NextRequest) {
+  const debugInfo: any = {
+    functionName: FUNCTION_NAME,
+    hasFunctionName: !!FUNCTION_NAME,
+    region: getCognitoClientConfig().region,
+    hasManualCredentials: !!getCognitoClientConfig().credentials,
+    // Safely check for env vars without exposing secrets
+    env: {
+      hasAwsKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasAwsSecret: !!process.env.AWS_SECRET_ACCESS_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      lambdaName: process.env.AWS_LAMBDA_FUNCTION_NAME || "Not a Lambda",
+    }
+  };
+
   try {
     if (!FUNCTION_NAME) {
       console.error("ADMIN_ACTIONS_FUNCTION_NAME not configured");
       return NextResponse.json(
-        { error: "Admin Actions Function not configured" },
+        { error: "Admin Actions Function not configured", debug: debugInfo },
         { status: 500 }
       );
     }
@@ -64,7 +78,8 @@ export async function GET(request: NextRequest) {
       {
         error: "Failed to list users",
         details: error.message,
-        code: error.name
+        code: error.name,
+        debug: debugInfo
       },
       { status: 500 }
     );
