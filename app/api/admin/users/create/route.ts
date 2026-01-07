@@ -143,11 +143,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (error.name === "NotAuthorizedException" || error.name === "CredentialsProviderError") {
+    if (error.name === "NotAuthorizedException" || error.name === "CredentialsProviderError" || error.name === "AccessDeniedException") {
       return NextResponse.json(
         {
-          error: "AWS credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.",
-          details: error.message
+          error: "Authentication Error",
+          code: error.name,
+          details: error.message,
+          debug: {
+            hasAppKey: !!process.env.APP_AWS_ACCESS_KEY_ID,
+            hasAppSecret: !!process.env.APP_AWS_SECRET_ACCESS_KEY,
+            hasStandardKey: !!process.env.AWS_ACCESS_KEY_ID,
+            userPoolIdConfigured: !!USER_POOL_ID
+          }
         },
         { status: 401 }
       );
