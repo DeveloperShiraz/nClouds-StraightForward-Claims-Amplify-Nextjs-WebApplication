@@ -99,7 +99,7 @@ const schema = a.schema({
   listUsers: a
     .query()
     .returns(a.ref("User").array())
-    .handler(a.handler.function("userManagement"))
+    .handler(a.handler.function("adminActions"))
     .authorization((allow) => [allow.group("SuperAdmin")]),
 
   createUser: a
@@ -112,7 +112,7 @@ const schema = a.schema({
       companyName: a.string(),
     })
     .returns(a.ref("User"))
-    .handler(a.handler.function("userManagement"))
+    .handler(a.handler.function("adminActions"))
     .authorization((allow) => [allow.group("SuperAdmin")]),
 });
 

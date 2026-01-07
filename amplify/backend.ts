@@ -8,13 +8,13 @@ const backend = defineBackend({
   auth,
   data,
   storage,
-  userManagement: adminActions,
+  adminActions,
 });
 
 const { cfnUserPool } = backend.auth.resources.cfnResources;
 
-// Grant the userManagement function permissions to manage the Cognito User Pool
-backend.userManagement.resources.lambda.addToRolePolicy(
+// Grant the adminActions function permissions to manage the Cognito User Pool
+backend.adminActions.resources.lambda.addToRolePolicy(
   new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
     sid: "AllowAdminUserActions",
     actions: [
@@ -37,6 +37,6 @@ backend.userManagement.resources.lambda.addToRolePolicy(
 // Expose the function name to the application via amplify_outputs.json
 backend.addOutput({
   custom: {
-    adminActionsFunctionName: backend.userManagement.resources.lambda.functionName,
+    adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
   },
 });
