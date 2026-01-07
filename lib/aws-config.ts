@@ -29,6 +29,10 @@ export const getUserPoolId = () => {
   return outputs.auth?.user_pool_id || process.env.AMPLIFY_AUTH_USERPOOL_ID || "";
 };
 
+export const getAdminActionsFunctionName = () => {
+  return (outputs as any).custom?.adminActionsFunctionName || process.env.ADMIN_ACTIONS_FUNCTION_NAME || "";
+};
+
 export const getAWSCredentials = () => {
   // 1. Check for manual overrides (User requested "APP_" prefix)
   if (process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY) {

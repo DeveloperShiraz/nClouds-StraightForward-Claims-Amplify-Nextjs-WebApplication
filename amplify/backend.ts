@@ -38,10 +38,11 @@ backend.adminActions.resources.lambda.addToRolePolicy(
 const computeLambda = (backend as any).compute?.resources?.lambda;
 if (computeLambda) {
   backend.adminActions.resources.lambda.grantInvoke(computeLambda);
-
-  // Pass the function name to the API routes
-  computeLambda.addEnvironment(
-    "ADMIN_ACTIONS_FUNCTION_NAME",
-    backend.adminActions.resources.lambda.functionName
-  );
 }
+
+// Expose the function name to the application via amplify_outputs.json
+backend.addOutput({
+  custom: {
+    adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
+  },
+});

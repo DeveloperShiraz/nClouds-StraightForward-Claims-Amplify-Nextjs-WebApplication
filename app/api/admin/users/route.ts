@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
-import { getCognitoClientConfig } from "@/lib/aws-config";
+import { getCognitoClientConfig, getAdminActionsFunctionName } from "@/lib/aws-config";
 
 const lambdaClient = new LambdaClient(getCognitoClientConfig());
-const FUNCTION_NAME = process.env.ADMIN_ACTIONS_FUNCTION_NAME;
+const FUNCTION_NAME = getAdminActionsFunctionName();
 
 export async function GET(request: NextRequest) {
   try {
