@@ -36,50 +36,48 @@ backend.adminActions.resources.lambda.addToRolePolicy(
 
 // Grant the Next.js Compute Role permission to invoke this function
 // Grant the Next.js Compute Role permission to invoke this function
+// 1. Grant to the standard Amplify roles (most likely targets)
+try {
+  backend.adminActions.resources.lambda.grantInvoke(backend.auth.resources.authenticatedUserIamRole);
+  backend.adminActions.resources.lambda.grantInvoke(backend.auth.resources.unauthenticatedUserIamRole);
+} catch (e) {
+  // Silent
+}
+
+// 2. Search for ANY node that looks like a Role or Compute resource
+const allNodes = backend.stack.node.root.node.findAll();
 let computeLambda: any = (backend as any).compute?.resources?.lambda;
 
-const findNodeByIdRecursive = (node: any, targetId: string): any => {
-  if (node?.node?.id === targetId) return node;
-  for (const child of node?.node?.children || []) {
-    const found = findNodeByIdRecursive(child, targetId);
-    if (found) return found;
+allNodes.forEach((node) => {
+  const id = node.node.id;
+  // Grant to any "ServiceRole" found in the tree
+  if (id === "ServiceRole" || id.includes("ServiceRole")) {
+    try {
+      backend.adminActions.resources.lambda.grantInvoke(node as any);
+    } catch (e) { }
   }
-  return null;
-};
-
-if (!computeLambda) {
-  try {
-    // Exhaustive search: look for ANY node in the entire app tree with ID "Compute"
-    const allNodes = backend.stack.node.root.node.findAll();
-    const computeNode = allNodes.find(node => node.node.id === "Compute") as any;
-    computeLambda = computeNode?.resources?.lambda;
-  } catch (e) {
-    // Silent
+  // Try to find the elusive Compute Lambda
+  if (!computeLambda && (id === "Compute" || id.includes("Compute"))) {
+    computeLambda = (node as any).resources?.lambda || (node as any).lambda;
   }
-}
+});
 
 const computeLambdaFound = !!computeLambda;
 
 if (computeLambda) {
-  backend.adminActions.resources.lambda.grantInvoke(computeLambda);
-
-  // Explicitly pass manual keys if they exist in the build environment
-  if (process.env.APP_AWS_ACCESS_KEY_ID) {
-    computeLambda.addEnvironment("APP_AWS_ACCESS_KEY_ID", process.env.APP_AWS_ACCESS_KEY_ID);
-  }
-  if (process.env.APP_AWS_SECRET_ACCESS_KEY) {
-    computeLambda.addEnvironment("APP_AWS_SECRET_ACCESS_KEY", process.env.APP_AWS_SECRET_ACCESS_KEY);
-  }
-  if (process.env.APP_AWS_SESSION_TOKEN) {
-    computeLambda.addEnvironment("APP_AWS_SESSION_TOKEN", process.env.APP_AWS_SESSION_TOKEN);
-  }
+  try {
+    backend.adminActions.resources.lambda.grantInvoke(computeLambda);
+    if (process.env.APP_AWS_ACCESS_KEY_ID) {
+      computeLambda.addEnvironment("APP_AWS_ACCESS_KEY_ID", process.env.APP_AWS_ACCESS_KEY_ID);
+    }
+  } catch (e) { }
 }
 
-// Expose debug info to the application
+// Expose full diagnostic ID list (joined with | to save space)
 backend.addOutput({
   custom: {
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
     debug_computeLambdaFound: computeLambdaFound,
-    debug_allIdsSnippet: backend.stack.node.root.node.findAll().map(n => n.node.id).slice(0, 50).join(", "),
+    debug_allIds: allNodes.map(n => n.node.id).join("|").slice(0, 1000),
   },
 });
