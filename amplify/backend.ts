@@ -31,7 +31,7 @@ const statement = new iam.PolicyStatement({
   resources: [cfnUserPool.attrArn],
 });
 
-// Attach the policy to the Lambda execution role
+// Attach the policy to the Lambda execution role.
 // Note: We cast to any because the 'compute' property is dynamically added for Next.js apps
 // but might not be in the static type definition yet.
 (backend as any).compute?.resources?.lambda?.addToRolePolicy(statement);
