@@ -1,4 +1,3 @@
-```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { generateServerClientUsingCookies } from "@aws-amplify/adapter-nextjs/data";
 import { cookies } from "next/headers";
@@ -45,23 +44,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error creating user:", error);
-
-    // Handle specific error cases that might come from SDK or Function
-    const errorName = error.name || error.errorType;
-
-    if (errorName === "UsernameExistsException") {
-      return NextResponse.json(
-        { error: "User with this email already exists" },
-        { status: 409 }
-      );
-    }
-
+    const errorName = error.name || "Error";
     return NextResponse.json(
       {
         error: error.message || "Failed to create user",
         code: errorName,
         details: "See server logs for more information",
-        debug: debugInfo
       },
       { status: 500 }
     );
