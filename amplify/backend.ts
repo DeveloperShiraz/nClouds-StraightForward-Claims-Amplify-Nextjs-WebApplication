@@ -49,9 +49,9 @@ const findNodeByIdRecursive = (node: any, targetId: string): any => {
 
 if (!computeLambda) {
   try {
-    // Search the ENTIRE App tree (all stacks)
-    const appRoot = backend.stack.node.root;
-    const computeNode = findNodeByIdRecursive(appRoot, "Compute");
+    // Exhaustive search: look for ANY node in the entire app tree with ID "Compute"
+    const allNodes = backend.stack.node.root.node.findAll();
+    const computeNode = allNodes.find(node => node.node.id === "Compute") as any;
     computeLambda = computeNode?.resources?.lambda;
   } catch (e) {
     // Silent
@@ -80,7 +80,6 @@ backend.addOutput({
   custom: {
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
     debug_computeLambdaFound: computeLambdaFound,
-    debug_backendKeys: Object.keys(backend).join(", "),
-    debug_appChildren: backend.stack.node.root.node.children.map((c: any) => c.node.id).join(", "),
+    debug_allIdsSnippet: backend.stack.node.root.node.findAll().map(n => n.node.id).slice(0, 50).join(", "),
   },
 });
