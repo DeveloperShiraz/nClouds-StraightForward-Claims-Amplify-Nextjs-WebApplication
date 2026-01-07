@@ -38,13 +38,10 @@ backend.adminActions.resources.lambda.addToRolePolicy(
 // Grant the Next.js Compute Role permission to invoke this function
 let computeLambda: any = (backend as any).compute?.resources?.lambda;
 
-// Diagnostic: Recursive search for "Compute" in the CDK tree
-const findCompute = (node: any): any => {
-  if (node?.node?.id === "Compute") {
-    return node;
-  }
+const findNodeByIdRecursive = (node: any, targetId: string): any => {
+  if (node?.node?.id === targetId) return node;
   for (const child of node?.node?.children || []) {
-    const found = findCompute(child);
+    const found = findNodeByIdRecursive(child, targetId);
     if (found) return found;
   }
   return null;
@@ -52,10 +49,12 @@ const findCompute = (node: any): any => {
 
 if (!computeLambda) {
   try {
-    const computeNode = findCompute(backend.stack);
+    // Search the ENTIRE App tree (all stacks)
+    const appRoot = backend.stack.node.root;
+    const computeNode = findNodeByIdRecursive(appRoot, "Compute");
     computeLambda = computeNode?.resources?.lambda;
   } catch (e) {
-    // Silent catch
+    // Silent
   }
 }
 
@@ -82,6 +81,6 @@ backend.addOutput({
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
     debug_computeLambdaFound: computeLambdaFound,
     debug_backendKeys: Object.keys(backend).join(", "),
-    debug_stackChildren: (backend.stack.node.children || []).map((c: any) => c.node.id).join(", "),
+    debug_appChildren: backend.stack.node.root.node.children.map((c: any) => c.node.id).join(", "),
   },
 });
