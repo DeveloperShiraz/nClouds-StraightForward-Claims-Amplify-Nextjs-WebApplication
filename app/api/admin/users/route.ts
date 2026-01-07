@@ -1,79 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCognitoClientConfig, getUserPoolId } from "@/lib/aws-config";
-import {
-  CognitoIdentityProviderClient,
-  ListUsersCommand,
-  AdminGetUserCommand,
-  AdminListGroupsForUserCommand,
-} from "@aws-sdk/client-cognito-identity-provider";
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { getCognitoClientConfig } from "@/lib/aws-config";
 
-const USER_POOL_ID = getUserPoolId();
-
-const client = new CognitoIdentityProviderClient({
-  ...getCognitoClientConfig(),
-});
+const lambdaClient = new LambdaClient(getCognitoClientConfig());
+const FUNCTION_NAME = process.env.ADMIN_ACTIONS_FUNCTION_NAME;
 
 export async function GET(request: NextRequest) {
   try {
-    if (!USER_POOL_ID) {
+    if (!FUNCTION_NAME) {
+      console.error("ADMIN_ACTIONS_FUNCTION_NAME not configured");
       return NextResponse.json(
-        { error: "User pool ID not configured" },
+        { error: "Admin Actions Function not configured" },
         { status: 500 }
       );
     }
 
-    // List all users in the user pool
-    const listUsersCommand = new ListUsersCommand({
-      UserPoolId: USER_POOL_ID,
+    // Call the admin-actions function to list users
+    const command = new InvokeCommand({
+      FunctionName: FUNCTION_NAME,
+      Payload: Buffer.from(JSON.stringify({
+        action: "listUsers",
+        payload: {}
+      })),
     });
 
-    const usersResponse = await client.send(listUsersCommand);
+    const response = await lambdaClient.send(command);
+    const result = JSON.parse(Buffer.from(response.Payload!).toString());
 
-    // Get groups for each user
-    const usersWithGroups = await Promise.all(
-      (usersResponse.Users || []).map(async (user) => {
-        const username = user.Username!;
+    if (response.FunctionError) {
+      throw new Error(result.errorMessage || "Function execution failed");
+    }
 
-        // Get user groups
-        const listGroupsCommand = new AdminListGroupsForUserCommand({
-          UserPoolId: USER_POOL_ID,
-          Username: username,
-        });
+    const { users } = result;
 
-        const groupsResponse = await client.send(listGroupsCommand);
-        const groups = groupsResponse.Groups?.map((g) => g.GroupName!) || [];
+    // Process users and groups (now handled within the function or returned as is)
+    // The function already provides the users array.
 
-        // Extract user attributes
-        const attributes = user.Attributes?.reduce((acc, attr) => {
-          if (attr.Name) {
-            acc[attr.Name] = attr.Value || "";
-          }
-          return acc;
-        }, {} as Record<string, string>) || {};
+    const formattedUsers = users.map((user: any) => {
+      const username = user.Username || user.username;
 
-        return {
-          username,
-          email: attributes.email || "",
-          emailVerified: attributes.email_verified === "true",
-          status: user.UserStatus,
-          enabled: user.Enabled,
-          createdAt: user.UserCreateDate?.toISOString(),
-          groups,
-          companyId: attributes["custom:companyId"] || null,
-          companyName: attributes["custom:companyName"] || null,
-        };
-      })
-    );
+      const attributes = (user.Attributes || []).reduce((acc: any, attr: any) => {
+        acc[attr.Name] = attr.Value || "";
+        return acc;
+      }, {});
 
-    return NextResponse.json({ users: usersWithGroups });
-  } catch (error) {
+      return {
+        username,
+        email: attributes.email || "",
+        emailVerified: attributes.email_verified === "true",
+        status: user.UserStatus,
+        enabled: user.Enabled,
+        createdAt: user.UserCreateDate ? new Date(user.UserCreateDate).toISOString() : user.createdAt,
+        groups: user.groups || [], // If function returns groups
+        companyId: attributes["custom:companyId"] || null,
+        companyName: attributes["custom:companyName"] || null,
+      };
+    });
+
+    return NextResponse.json({ users: formattedUsers });
+  } catch (error: any) {
     console.error("Error listing users:", error);
     return NextResponse.json(
       {
         error: "Failed to list users",
-        details: error instanceof Error ? error.message : String(error),
-        code: (error as any).name,
-        userPoolIdConfigured: !!USER_POOL_ID
+        details: error.message,
+        code: error.name
       },
       { status: 500 }
     );

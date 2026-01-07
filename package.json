@@ -17,6 +17,7 @@
     "@aws-amplify/ui-react-storage": "^3.7.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
     "@aws-sdk/client-dynamodb": "^3.751.0",
+    "@aws-sdk/client-lambda": "^3.964.0",
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/lib-dynamodb": "^3.751.0",
     "@cloudscape-design/board-components": "^3.0.92",
