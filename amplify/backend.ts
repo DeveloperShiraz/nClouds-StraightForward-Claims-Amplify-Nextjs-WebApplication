@@ -35,13 +35,24 @@ backend.adminActions.resources.lambda.addToRolePolicy(
 );
 
 // Grant the Next.js Compute Role permission to invoke this function
-let computeLambda = (backend as any).compute?.resources?.lambda;
+// Grant the Next.js Compute Role permission to invoke this function
+let computeLambda: any = (backend as any).compute?.resources?.lambda;
 
-// Diagnostic: Try to find "Compute" in the CDK tree if the property is missing
+// Diagnostic: Recursive search for "Compute" in the CDK tree
+const findCompute = (node: any): any => {
+  if (node?.node?.id === "Compute") {
+    return node;
+  }
+  for (const child of node?.node?.children || []) {
+    const found = findCompute(child);
+    if (found) return found;
+  }
+  return null;
+};
+
 if (!computeLambda) {
   try {
-    const stack = (backend.auth.resources.cfnResources.cfnUserPool as any).stack;
-    const computeNode = stack?.node?.tryFindChild("Compute") as any;
+    const computeNode = findCompute(backend.stack);
     computeLambda = computeNode?.resources?.lambda;
   } catch (e) {
     // Silent catch
@@ -65,11 +76,12 @@ if (computeLambda) {
   }
 }
 
-// Expose the function name and some debug flags to the application
+// Expose debug info to the application
 backend.addOutput({
   custom: {
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
     debug_computeLambdaFound: computeLambdaFound,
     debug_backendKeys: Object.keys(backend).join(", "),
+    debug_stackChildren: (backend.stack.node.children || []).map((c: any) => c.node.id).join(", "),
   },
 });
