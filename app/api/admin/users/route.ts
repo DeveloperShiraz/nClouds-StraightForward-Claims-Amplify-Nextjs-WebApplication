@@ -69,7 +69,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error listing users:", error);
     return NextResponse.json(
-      { error: "Failed to list users" },
+      {
+        error: "Failed to list users",
+        details: error instanceof Error ? error.message : String(error),
+        code: (error as any).name,
+        userPoolIdConfigured: !!USER_POOL_ID
+      },
       { status: 500 }
     );
   }
