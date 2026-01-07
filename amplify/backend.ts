@@ -8,13 +8,13 @@ const backend = defineBackend({
   auth,
   data,
   storage,
-  adminActions,
+  userManagement: adminActions,
 });
 
 const { cfnUserPool } = backend.auth.resources.cfnResources;
 
-// Grant the adminActions function permissions to manage the Cognito User Pool
-backend.adminActions.resources.lambda.addToRolePolicy(
+// Grant the userManagement function permissions to manage the Cognito User Pool
+backend.userManagement.resources.lambda.addToRolePolicy(
   new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
     sid: "AllowAdminUserActions",
     actions: [
@@ -34,15 +34,9 @@ backend.adminActions.resources.lambda.addToRolePolicy(
   })
 );
 
-// Grant the Next.js Compute Role permission to invoke this function (Standard property)
-const computeLambda = (backend as any).compute?.resources?.lambda;
-if (computeLambda) {
-  backend.adminActions.resources.lambda.grantInvoke(computeLambda);
-}
-
 // Expose the function name to the application via amplify_outputs.json
 backend.addOutput({
   custom: {
-    adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
+    adminActionsFunctionName: backend.userManagement.resources.lambda.functionName,
   },
 });
