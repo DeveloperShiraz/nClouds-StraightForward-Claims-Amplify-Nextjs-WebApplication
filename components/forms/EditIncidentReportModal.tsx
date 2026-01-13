@@ -51,8 +51,8 @@ const editIncidentReportSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   shingleExposure: z.string()
     .optional()
-    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0 && parseFloat(val) <= 100),
-      "Shingle exposure must be between 0 and 100 inches"),
+    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0 && parseFloat(val) <= 12),
+      "Shingle exposure must be between 0 and 12 inches"),
   status: z.enum(["submitted", "in_review", "resolved"]).optional(),
 });
 
@@ -106,13 +106,13 @@ export function EditIncidentReportModal({
       claimNumber: report.claimNumber,
       firstName: report.firstName,
       lastName: report.lastName,
-      phone: report.phone,
+      phone: report.phone.replace(/\D/g, ''),
       email: report.email,
       address: report.address,
       apartment: report.apartment || "",
       city: report.city,
       state: report.state,
-      zip: report.zip,
+      zip: report.zip.replace(/\D/g, ''),
       incidentDate: new Date(report.incidentDate),
       description: report.description,
       shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
@@ -127,13 +127,13 @@ export function EditIncidentReportModal({
         claimNumber: report.claimNumber,
         firstName: report.firstName,
         lastName: report.lastName,
-        phone: report.phone,
+        phone: report.phone.replace(/\D/g, ''),
         email: report.email,
         address: report.address,
         apartment: report.apartment || "",
         city: report.city,
         state: report.state,
-        zip: report.zip,
+        zip: report.zip.replace(/\D/g, ''),
         incidentDate: new Date(report.incidentDate),
         description: report.description,
         shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
@@ -480,7 +480,15 @@ export function EditIncidentReportModal({
                   <FormItem>
                     <FormLabel>ZIP Code</FormLabel>
                     <FormControl>
-                      <Input placeholder="77001" maxLength={5} {...field} />
+                      <Input
+                        placeholder="77001"
+                        maxLength={5}
+                        {...field}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/\D/g, '');
+                          field.onChange(cleaned);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
