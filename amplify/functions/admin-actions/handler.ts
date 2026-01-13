@@ -28,14 +28,23 @@ export const handler = async (event: any) => {
     // AppSync passes arguments in 'arguments', direct call uses 'payload'
     const payload = event.payload || event.arguments || {};
 
-    console.log(`Executing admin action: ${action}`, { hasPayload: !!payload });
+    const identity = event.identity;
+    const claims = identity?.claims || {};
+
+    // Helper to get custom claims which might be prefixed or not depending on the provider
+    const getClaim = (name: string) => claims[`custom:${name}`] || claims[name];
+
+    console.log(`Executing admin action: ${action}`, {
+        username: identity?.username,
+        groups: identity?.groups,
+        hasCompanyId: !!getClaim("companyId")
+    });
 
     switch (action) {
         case "listUsers": {
-            const identity = event.identity;
             const callerGroups = identity?.groups || [];
             const isSuperAdmin = callerGroups.includes("SuperAdmin");
-            const callerCompanyId = identity?.claims?.["custom:companyId"];
+            const callerCompanyId = getClaim("companyId");
 
             const command = new ListUsersCommand({
                 UserPoolId: userPoolId,
@@ -70,10 +79,19 @@ export const handler = async (event: any) => {
                 };
             }));
 
-            // Filter users if not SuperAdmin
-            const filteredUsers = isSuperAdmin
-                ? allUsers
-                : allUsers.filter(u => u.companyId === callerCompanyId);
+            // Filter users based on organizational boundaries
+            let filteredUsers = allUsers;
+
+            if (!isSuperAdmin) {
+                // If not a SuperAdmin, strictly filter by companyId
+                // If callerCompanyId is missing, Admin sees nothing (safety first)
+                if (!callerCompanyId) {
+                    console.warn(`Admin user ${identity?.username} has no companyId. Returning empty list.`);
+                    filteredUsers = [];
+                } else {
+                    filteredUsers = allUsers.filter(u => u.companyId === callerCompanyId);
+                }
+            }
 
             return event.fieldName ? filteredUsers : { users: filteredUsers };
         }
@@ -87,11 +105,10 @@ export const handler = async (event: any) => {
                 companyName: providedCompanyName
             } = payload;
 
-            const identity = event.identity;
             const callerGroups = identity?.groups || [];
             const isSuperAdmin = callerGroups.includes("SuperAdmin");
-            const callerCompanyId = identity?.claims?.["custom:companyId"];
-            const callerCompanyName = identity?.claims?.["custom:companyName"];
+            const callerCompanyId = getClaim("companyId");
+            const callerCompanyName = getClaim("companyName");
 
             // Enforce companyId for Admins
             let finalCompanyId = providedCompanyId;
@@ -161,13 +178,12 @@ export const handler = async (event: any) => {
             if (!username) throw new Error("Username is required for deleteUser");
 
             // Multi-tenancy check: Admins can only delete users in their company
-            const identity = event.identity;
             const callerGroups = identity?.groups || [];
             const isSuperAdmin = callerGroups.includes("SuperAdmin");
             const isAdmin = callerGroups.includes("Admin");
 
             if (!isSuperAdmin && isAdmin) {
-                const callerCompanyId = identity?.claims?.["custom:companyId"];
+                const callerCompanyId = getClaim("companyId");
                 if (!callerCompanyId) throw new Error("Unauthorized: Admin has no associated company");
 
                 // Fetch target user to check companyId
