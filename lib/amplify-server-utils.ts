@@ -17,9 +17,11 @@ export async function createServerClient() {
 }
 
 // For use in API Routes - uses request/response based authentication
-export function createApiClient(contextSpec: any) {
+// Added optional authMode parameter to support public/guest access
+export function createApiClient(contextSpec: any, authMode?: 'userPool' | 'identityPool' | 'apiKey' | 'oidc' | 'iam') {
   return generateServerClientUsingReqRes<Schema>({
     config: outputs,
+    authMode: authMode,
     ...contextSpec,
   });
 }

@@ -32,7 +32,7 @@ export default function PublicIncidentFormPage() {
       }
 
       try {
-        const response = await fetch(`/api/admin/companies/${companyId}`);
+        const response = await fetch(`/api/public/companies/${companyId}`);
         if (!response.ok) {
           throw new Error("Company not found");
         }
