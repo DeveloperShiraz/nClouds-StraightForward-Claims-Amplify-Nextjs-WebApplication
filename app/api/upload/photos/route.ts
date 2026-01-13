@@ -5,9 +5,8 @@ import outputs from "@/amplify_outputs.json";
 
 const BUCKET_NAME = outputs.storage.bucket_name;
 
-const s3Client = new S3Client(getS3ClientConfig());
-
 export async function POST(request: NextRequest) {
+  const s3Client = new S3Client(getS3ClientConfig());
   try {
     // Debug instrumentation for credentials
     console.log("=== S3 UPLOAD DEBUG START ===");
