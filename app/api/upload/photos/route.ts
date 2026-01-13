@@ -9,6 +9,16 @@ const s3Client = new S3Client(getS3ClientConfig());
 
 export async function POST(request: NextRequest) {
   try {
+    // Debug instrumentation for credentials
+    console.log("=== S3 UPLOAD DEBUG START ===");
+    console.log("Region:", getAWSRegion());
+    console.log("Bucket:", BUCKET_NAME);
+    console.log("Creds Source:", process.env.AWS_ACCESS_KEY_ID ? "Environment Vars Found" : "No Environment Vars");
+    if (process.env.AWS_ACCESS_KEY_ID) {
+      console.log("Access Key:", process.env.AWS_ACCESS_KEY_ID.substring(0, 5) + "...");
+    }
+    console.log("==============================");
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const path = formData.get("path") as string;

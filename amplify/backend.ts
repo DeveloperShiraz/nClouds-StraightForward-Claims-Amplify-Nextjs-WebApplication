@@ -43,7 +43,12 @@ backend.adminActions.resources.lambda.addToRolePolicy(
 // Grant the server-side (Compute) role permission to upload to S3
 // This is required for the public-to-server-to-S3 proxy in /api/upload/photos
 const stack = (backend.storage.resources.bucket as any).stack;
-const computeRole = stack.node.findAll().find((n: any) => n.id === 'Compute' || n.id === 'ComputeRole');
+const computeRole = stack.node.findAll().find((n: any) =>
+  n.node?.id === 'Compute' ||
+  n.node?.id === 'ComputeRole' ||
+  n.node?.id?.includes('Compute')
+);
+
 if (computeRole) {
   backend.storage.resources.bucket.grantWrite(computeRole);
 }

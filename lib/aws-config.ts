@@ -48,8 +48,17 @@ export const getAWSCredentials = () => {
     };
   }
 
-  // 2. Return undefined to allow the SDK's Default Credential Provider Chain
-  // This is the most robust way in production (Lambda Roles, EC2 Roles, etc.)
+  // 2. Check for standard AWS Lambda/SSR environment variables
+  // (Standard SDK provider chain should handle this, but explicit check provides better reliability in SSR)
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    return {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      sessionToken: process.env.AWS_SESSION_TOKEN,
+    };
+  }
+
+  // 3. Return undefined to allow the SDK's Default Credential Provider Chain
   return undefined;
 };
 
