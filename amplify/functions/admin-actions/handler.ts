@@ -6,6 +6,7 @@ import {
     AdminSetUserPasswordCommand,
     AdminListGroupsForUserCommand,
     AdminDeleteUserCommand,
+    AdminGetUserCommand,
     MessageActionType,
 } from "@aws-sdk/client-cognito-identity-provider";
 
@@ -31,21 +32,49 @@ export const handler = async (event: any) => {
     const identity = event.identity;
     const claims = identity?.claims || {};
 
-    // Helper to get custom claims which might be prefixed or not depending on the provider
+    // Helper to get claims with multiple fallback keys
     const getClaim = (name: string) => claims[`custom:${name}`] || claims[name];
+
+    // Robust way to get the caller's organizational context
+    async function getCallerContext() {
+        const groups = identity?.groups || [];
+        const isSuperAdmin = groups.includes("SuperAdmin");
+        const isAdmin = groups.includes("Admin");
+
+        // Try to get from claims first
+        let companyId = getClaim("companyId");
+        let companyName = getClaim("companyName");
+
+        // Fallback: If identity exists but claims are missing companyId, fetch directly from Cognito
+        if (identity?.username && !isSuperAdmin && isAdmin && !companyId) {
+            console.log(`Fallback: Fetching organizational context for ${identity.username} directly from Cognito`);
+            try {
+                const userData = await client.send(new AdminGetUserCommand({
+                    UserPoolId: userPoolId,
+                    Username: identity.username
+                }));
+                companyId = userData.UserAttributes?.find(a => a.Name === "custom:companyId")?.Value;
+                companyName = userData.UserAttributes?.find(a => a.Name === "custom:companyName")?.Value;
+                console.log(`Successfully fetched fallback context: ${companyId}`);
+            } catch (err) {
+                console.error("Failed to fetch fallback caller context:", err);
+            }
+        }
+
+        return { groups, isSuperAdmin, isAdmin, companyId, companyName };
+    }
+
+    const context = await getCallerContext();
 
     console.log(`Executing admin action: ${action}`, {
         username: identity?.username,
-        groups: identity?.groups,
-        hasCompanyId: !!getClaim("companyId")
+        groups: context.groups,
+        isSuperAdmin: context.isSuperAdmin,
+        companyId: context.companyId
     });
 
     switch (action) {
         case "listUsers": {
-            const callerGroups = identity?.groups || [];
-            const isSuperAdmin = callerGroups.includes("SuperAdmin");
-            const callerCompanyId = getClaim("companyId");
-
             const command = new ListUsersCommand({
                 UserPoolId: userPoolId,
             });
@@ -82,14 +111,13 @@ export const handler = async (event: any) => {
             // Filter users based on organizational boundaries
             let filteredUsers = allUsers;
 
-            if (!isSuperAdmin) {
-                // If not a SuperAdmin, strictly filter by companyId
-                // If callerCompanyId is missing, Admin sees nothing (safety first)
-                if (!callerCompanyId) {
+            if (!context.isSuperAdmin) {
+                // Strictly filter by companyId for non-SuperAdmins
+                if (!context.companyId) {
                     console.warn(`Admin user ${identity?.username} has no companyId. Returning empty list.`);
                     filteredUsers = [];
                 } else {
-                    filteredUsers = allUsers.filter(u => u.companyId === callerCompanyId);
+                    filteredUsers = allUsers.filter(u => u.companyId === context.companyId);
                 }
             }
 
@@ -105,19 +133,14 @@ export const handler = async (event: any) => {
                 companyName: providedCompanyName
             } = payload;
 
-            const callerGroups = identity?.groups || [];
-            const isSuperAdmin = callerGroups.includes("SuperAdmin");
-            const callerCompanyId = getClaim("companyId");
-            const callerCompanyName = getClaim("companyName");
-
             // Enforce companyId for Admins
             let finalCompanyId = providedCompanyId;
             let finalCompanyName = providedCompanyName;
 
-            if (!isSuperAdmin) {
-                if (!callerCompanyId) throw new Error("Unauthorized: Admin has no associated company");
-                finalCompanyId = callerCompanyId;
-                finalCompanyName = callerCompanyName || providedCompanyName;
+            if (!context.isSuperAdmin) {
+                if (!context.companyId) throw new Error("Unauthorized: Admin has no associated company");
+                finalCompanyId = context.companyId;
+                finalCompanyName = context.companyName || providedCompanyName;
             }
 
             const userAttributes = [
@@ -178,26 +201,20 @@ export const handler = async (event: any) => {
             if (!username) throw new Error("Username is required for deleteUser");
 
             // Multi-tenancy check: Admins can only delete users in their company
-            const callerGroups = identity?.groups || [];
-            const isSuperAdmin = callerGroups.includes("SuperAdmin");
-            const isAdmin = callerGroups.includes("Admin");
-
-            if (!isSuperAdmin && isAdmin) {
-                const callerCompanyId = getClaim("companyId");
-                if (!callerCompanyId) throw new Error("Unauthorized: Admin has no associated company");
+            if (!context.isSuperAdmin && context.isAdmin) {
+                if (!context.companyId) throw new Error("Unauthorized: Admin has no associated company");
 
                 // Fetch target user to check companyId
-                const { AdminGetUserCommand } = await import("@aws-sdk/client-cognito-identity-provider");
                 const targetUser = await client.send(new AdminGetUserCommand({
                     UserPoolId: userPoolId,
                     Username: username,
                 }));
 
                 const targetCompanyId = targetUser.UserAttributes?.find(a => a.Name === "custom:companyId")?.Value;
-                if (targetCompanyId !== callerCompanyId) {
+                if (targetCompanyId !== context.companyId) {
                     throw new Error("Unauthorized: Cannot delete user from a different company");
                 }
-            } else if (!isSuperAdmin) {
+            } else if (!context.isSuperAdmin) {
                 throw new Error("Unauthorized: Insufficient permissions to delete users");
             }
 
