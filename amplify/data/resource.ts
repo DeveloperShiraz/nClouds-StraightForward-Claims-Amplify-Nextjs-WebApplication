@@ -65,6 +65,7 @@ const schema = a.schema({
       description: a.string().required(),
       shingleExposure: a.float(), // Shingle exposure in inches
       photoUrls: a.string().array(), // Store S3 URLs of uploaded photos
+      aiAnalysis: a.json(), // Store the AI analysis result
       status: a.enum(["submitted", "in_review", "resolved"]),
       submittedAt: a.datetime(),
       submittedBy: a.string(),

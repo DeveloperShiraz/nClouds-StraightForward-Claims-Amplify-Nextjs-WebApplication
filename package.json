@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --turbo",
+    "dev": "next dev",
     "start": "next start",
     "upload-data": "tsx scripts/uploadAccessoryData.ts"
   },
@@ -20,6 +20,7 @@
     "@aws-sdk/client-lambda": "^3.964.0",
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/lib-dynamodb": "^3.751.0",
+    "@aws-sdk/lib-storage": "^3.969.0",
     "@cloudscape-design/board-components": "^3.0.92",
     "@cloudscape-design/collection-hooks": "^1.0.61",
     "@cloudscape-design/components": "^3.0.899",
@@ -99,6 +100,7 @@
     "@types/node": "^20.14.8",
     "@types/react": "npm:types-react@19.0.0-rc.1",
     "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1",
+    "esbuild": "^0.27.2",
     "tsx": "^4.19.2",
     "typescript": "5.5.2"
   },

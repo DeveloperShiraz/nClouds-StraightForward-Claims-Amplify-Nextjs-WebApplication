@@ -5,8 +5,9 @@ import { getUrl, remove } from "aws-amplify/storage";
 import { fetchAuthSession } from "aws-amplify/auth";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
-import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap } from "lucide-react";
 import { EditIncidentReportModal } from "@/components/forms/EditIncidentReportModal";
+import { AIAnalysisDisplay } from "@/components/AIAnalysisDisplay";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import { useCompany } from "@/contexts/CompanyContext";
 import {
@@ -40,6 +41,7 @@ interface IncidentReport {
   companyId?: string | null;
   companyName?: string | null;
   submittedBy?: string;
+  aiAnalysis?: string | null;
 }
 
 export default function ReportsPage() {
@@ -49,6 +51,7 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingReport, setEditingReport] = useState<IncidentReport | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [photoUrlsMap, setPhotoUrlsMap] = useState<Record<string, string[]>>({});
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>("all");
   const { isAdmin, isIncidentReporter, isSuperAdmin, isLoading: roleLoading, companyId, userEmail } = useUserRole();
@@ -179,6 +182,8 @@ export default function ReportsPage() {
         console.log("✅ All photos deleted from S3");
       }
 
+      // AI Image deletion is now handled by the backend API to ensure correct bucket access.
+
       // Delete the report from DynamoDB via API
       const response = await fetch(`/api/incident-reports/${id}`, {
         method: "DELETE",
@@ -199,6 +204,34 @@ export default function ReportsPage() {
       alert(`Error deleting report: ${error?.message || "Unknown error"}`);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleAnalyze = async (id: string) => {
+    setAnalyzingId(id);
+    try {
+      console.log(`Starting AI analysis for report: ${id}`);
+      const response = await fetch(`/api/incident-reports/${id}/analyze`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log("✅ AI Analysis completed successfully");
+        // Update the local state with the new analysis
+        setReports(prev => prev.map(report =>
+          report.id === id ? { ...report, aiAnalysis: JSON.stringify(data.analysis) } : report
+        ));
+      } else {
+        console.error("❌ AI Analysis failed:", data.error);
+        alert(`AI Analysis failed: ${data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error triggering AI analysis:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setAnalyzingId(null);
     }
   };
 
@@ -384,6 +417,22 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-2">
                   {getStatusBadge(report.status)}
                   {/* Only admins and incident reporters can edit their reports */}
+                  {(isAdmin || isIncidentReporter || isSuperAdmin) && (
+                    <Button
+                      onClick={() => handleAnalyze(report.id)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      disabled={analyzingId === report.id}
+                    >
+                      {analyzingId === report.id ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Zap className="w-4 h-4 fill-blue-600" />
+                      )}
+                      {analyzingId === report.id ? "Analyzing..." : "Analyze with AI"}
+                    </Button>
+                  )}
                   {(isAdmin || isIncidentReporter) && (
                     <Button
                       onClick={() => handleEdit(report)}
@@ -479,6 +528,11 @@ export default function ReportsPage() {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* AI Analysis Section */}
+              {report.aiAnalysis && (
+                <AIAnalysisDisplay analysis={report.aiAnalysis} />
               )}
             </div>
           ))}

@@ -10,27 +10,54 @@ export async function GET(request: NextRequest) {
         console.log("Fetching incident reports from Amplify Data...");
 
         const client = createApiClient(contextSpec);
-        const { data: reports, errors } = await client.models.IncidentReport.list(contextSpec, {
-          selectionSet: [
-            'id', 'claimNumber', 'companyId', 'companyName', 'firstName', 'lastName',
-            'phone', 'email', 'address', 'apartment', 'city', 'state', 'zip',
-            'incidentDate', 'description', 'shingleExposure', 'photoUrls', 'status',
-            'submittedAt', 'submittedBy'
-          ],
-        });
 
-        if (errors) {
-          console.error("Errors fetching incident reports:", errors);
+        const listQuery = `
+          query ListIncidentReports {
+            listIncidentReports(limit: 1000) {
+              items {
+                id
+                claimNumber
+                companyId
+                companyName
+                firstName
+                lastName
+                phone
+                email
+                address
+                apartment
+                city
+                state
+                zip
+                incidentDate
+                description
+                shingleExposure
+                photoUrls
+                status
+                submittedAt
+                submittedBy
+                createdAt
+                updatedAt
+                aiAnalysis
+              }
+            }
+          }
+        `;
+
+        const response = await client.graphql(contextSpec, {
+          query: listQuery
+        }) as any;
+
+        if (response.errors) {
+          console.error("Errors fetching incident reports:", response.errors);
           return NextResponse.json(
-            { error: "Failed to fetch incident reports", details: errors },
+            { error: "Failed to fetch incident reports", details: response.errors },
             { status: 500 }
           );
         }
 
+        const reports = response.data.listIncidentReports.items;
+
         console.log(`Found ${reports?.length || 0} incident reports`);
-        if (reports && reports.length > 0) {
-          console.log("Report details:", reports.map(r => ({ id: r.id, companyId: r.companyId, submittedBy: r.submittedBy })));
-        }
         return NextResponse.json({ reports: reports || [] });
       } catch (error: any) {
         console.error("Exception fetching incident reports:", error);
@@ -101,6 +128,7 @@ export async function POST(request: NextRequest) {
           companyId: companyId || undefined,
           companyName: companyName || undefined,
           submittedBy: submittedBy || undefined,
+          aiAnalysis: JSON.stringify({ status: 'pending' }),
         });
 
         if (errors) {

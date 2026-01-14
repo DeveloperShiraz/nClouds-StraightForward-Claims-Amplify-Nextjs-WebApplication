@@ -316,6 +316,15 @@ export function IncidentReportForm({
       createdReportId = result.report?.id || result.reportId;
       console.log("✅ Success! Created incident report with ID:", createdReportId);
 
+      // Trigger AI Analysis in the background (fire and forget)
+      if (createdReportId) {
+        console.log("Triggering auto-analysis for:", createdReportId);
+        fetch(`/api/incident-reports/${createdReportId}/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        }).catch(err => console.error("Auto-analysis trigger failed:", err));
+      }
+
       const successMessage = files.length > 0 && finalPhotoUrls.length === 0
         ? "Incident report submitted successfully! (Photos could not be uploaded)"
         : files.length > 0 && finalPhotoUrls.length > 0

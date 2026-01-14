@@ -53,7 +53,17 @@ if (computeRole) {
   // If the found construct has a 'role' property, use that; otherwise use the construct itself
   const grantable = (computeRole as any).role || computeRole;
   backend.storage.resources.bucket.grantWrite(grantable);
-  console.log("Successfully granted S3 write access to Compute role");
+
+  // Grant permission to read from the AI output bucket
+  grantable.addToPrincipalPolicy(
+    new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
+      sid: "AllowReadAIOutput",
+      actions: ["s3:GetObject"],
+      resources: ["arn:aws:s3:::roof-inspection-poc-output/*"],
+    })
+  );
+
+  console.log("Successfully granted S3 write access and AI output read access to Compute role");
 } else {
   console.warn("Could not find Compute role to grant S3 permissions");
 }
