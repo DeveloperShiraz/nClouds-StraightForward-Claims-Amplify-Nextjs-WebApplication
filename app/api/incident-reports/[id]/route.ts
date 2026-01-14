@@ -119,7 +119,7 @@ export async function DELETE(
         // 2. Cascading Deletion for AI S3 Images
         if (reportToDelete?.aiAnalysis) {
           try {
-            const aiData = JSON.parse(reportToDelete.aiAnalysis);
+            const aiData = JSON.parse(reportToDelete.aiAnalysis as string);
             const aiPathsToDelete = new Set<string>();
             const bucketName = "roof-inspection-poc-output"; // Hardcoded specific bucket
 
