@@ -74,6 +74,8 @@ if (computeRole) {
 
 // Grant the Authenticated User Role permission to read from the AI output bucket
 // This is necessary because the backend API may run with the authenticated user's credentials
+// Grant the Authenticated User Role permission to read from the AI output bucket
+// This is necessary because the backend API may run with the authenticated user's credentials
 const authenticatedUserRole = backend.auth.resources.authenticatedUserIamRole;
 authenticatedUserRole.addToPrincipalPolicy(
   new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
@@ -82,6 +84,28 @@ authenticatedUserRole.addToPrincipalPolicy(
     resources: ["arn:aws:s3:::roof-inspection-poc-output", "arn:aws:s3:::roof-inspection-poc-output/*"],
   })
 );
+
+// Grant permissions to specific Group Roles
+// Users in groups assume specific roles, so we need to grant access to those as well
+const groups = ["SuperAdmin", "Admin", "IncidentReporter", "Customer"];
+for (const groupName of groups) {
+  const roleId = `${groupName}GroupRole`;
+  const roleNode = allNodes.find((n: any) => n.node?.id === roleId);
+  if (roleNode) {
+    // The node found is likely the CDK Role construct
+    const role = (roleNode as any).role || roleNode;
+    role.addToPrincipalPolicy(
+      new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
+        sid: `AllowReadAIOutputFor${groupName}`,
+        actions: ["s3:GetObject"],
+        resources: ["arn:aws:s3:::roof-inspection-poc-output", "arn:aws:s3:::roof-inspection-poc-output/*"],
+      })
+    );
+    console.log(`✅ Granted S3 read access to group role: ${groupName}`);
+  } else {
+    console.warn(`⚠️ Could not find IAM Role for group: ${groupName}`);
+  }
+}
 
 // Expose the function name and bucket ARN to the application via amplify_outputs.json
 backend.addOutput({
