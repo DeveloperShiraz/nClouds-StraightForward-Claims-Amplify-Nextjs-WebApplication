@@ -40,6 +40,7 @@ interface AIAnalysisDisplayProps {
 export function AIAnalysisDisplay({ analysis, reportId }: AIAnalysisDisplayProps) {
     const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
     const [analysisData, setAnalysisData] = useState<AIAnalysisData | null>(null);
+    const [loadErrors, setLoadErrors] = useState<string[]>([]);
     const [selectedImage, setSelectedImage] = useState<{ path: string, url: string } | null>(null);
 
     // Initialize state from props
