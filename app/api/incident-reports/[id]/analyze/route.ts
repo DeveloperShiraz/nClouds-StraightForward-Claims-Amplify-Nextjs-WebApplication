@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
+import { fetchAuthSession } from "aws-amplify/auth/server";
 import outputs from "@/amplify_outputs.json";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -117,15 +118,28 @@ export async function POST(
 
                         // 2. Copy each unique image and map URI -> Local Key
                         const uriToLocalKeyMap = new Map<string, string>();
-                        const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
+                        import { fetchAuthSession } from "aws-amplify/auth/server";
 
-                        // DEBUG: Log Environment Variables related to AWS
-                        console.log("🔍 DEBUG: AWS Enviroment Check:");
-                        console.log(`Region: ${process.env.AWS_REGION}`);
-                        const awsKeys = Object.keys(process.env).filter(k => k.startsWith('AWS'));
-                        console.log("AWS Env Keys Present:", awsKeys);
-                        if (process.env.AWS_ACCESS_KEY_ID) console.log("Has AWS_ACCESS_KEY_ID: Yes");
-                        if (process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI) console.log("Has Container Creds URI: Yes");
+                        // ... inside the function ...
+
+                        // 2. Copy each unique image and map URI -> Local Key
+                        const uriToLocalKeyMap = new Map<string, string>();
+
+                        // FIX: Retrieve credentials from the Amplify Context (which works in Hosting)
+                        // instead of relying on environment variables which seem stripped or custom.
+                        const session = await fetchAuthSession(contextSpec);
+                        const credentials = session.credentials;
+
+                        if (!credentials) {
+                            throw new Error("Failed to retrieve credentials from Amplify Server Context");
+                        }
+
+                        console.log("✅ Successfully retrieved temporary credentials for S3 Copy");
+
+                        const s3Client = new S3Client({
+                            region: process.env.AWS_REGION || "us-east-1",
+                            credentials: credentials
+                        });
 
                         const copyErrors: any[] = [];
                         for (const outputS3Uri of Array.from(uniqueOutputUris)) {
