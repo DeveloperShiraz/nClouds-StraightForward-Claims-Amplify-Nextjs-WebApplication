@@ -538,8 +538,8 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* AI Analysis Section */}
-              {report.aiAnalysis && (
+              {/* AI Analysis Section - Hidden for Customers */}
+              {!isCustomer && report.aiAnalysis && (
                 <AIAnalysisDisplay analysis={report.aiAnalysis} />
               )}
             </div>
