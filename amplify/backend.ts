@@ -74,7 +74,7 @@ if (computeRole) {
 
 // Grant the Authenticated User Role permission to read from the AI output bucket
 // This is necessary because the backend API may run with the authenticated user's credentials
-const authenticatedUserRole = backend.auth.resources.authenticatedUserRole;
+const authenticatedUserRole = backend.auth.resources.authenticatedUserIamRole;
 authenticatedUserRole.addToPrincipalPolicy(
   new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
     sid: "AllowReadAIOutputForUser",
