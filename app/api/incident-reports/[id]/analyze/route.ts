@@ -59,7 +59,7 @@ export async function POST(
                     images,
                     analysis_context: {
                         image_id: report.id,
-                        reported_peril: "hail", // This could be dynamic based on report content
+                        reported_peril: "",
                         weather_summary: `Analysis for incident on ${report.incidentDate}`,
                         notes: report.description
                     }
