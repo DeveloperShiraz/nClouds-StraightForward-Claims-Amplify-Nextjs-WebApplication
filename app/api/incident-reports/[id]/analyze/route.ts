@@ -156,7 +156,11 @@ export async function POST(
                                     uriToLocalKeyMap.set(outputS3Uri, targetKey);
                                 } catch (innerCopyError: any) {
                                     console.error(`❌ Failed to copy image ${outputS3Uri}:`, innerCopyError);
-                                    copyErrors.push({ uri: outputS3Uri, error: innerCopyError.message, name: innerCopyError.name });
+                                    let errorMsg = innerCopyError.message;
+                                    if (innerCopyError.name === 'CredentialsProviderError') {
+                                        errorMsg += " (This usually happens when running locally without AWS credentials. Please test on the deployed site.)";
+                                    }
+                                    copyErrors.push({ uri: outputS3Uri, error: errorMsg, name: innerCopyError.name });
                                 }
                             }
                         }
