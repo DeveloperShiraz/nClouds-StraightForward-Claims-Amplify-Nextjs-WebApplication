@@ -251,7 +251,7 @@ export default function ReportsPage() {
       return;
     }
 
-    let aiData = null;
+    let aiData: any = null;
     if (report.aiAnalysis) {
       try {
         aiData = typeof report.aiAnalysis === 'string' ? JSON.parse(report.aiAnalysis) : report.aiAnalysis;
@@ -261,271 +261,236 @@ export default function ReportsPage() {
     }
 
     const reportPhotos = photoUrlsMap[report.id] || [];
-    const photoGridHtml = reportPhotos.length > 0
-      ? `
-        <div class="section">
-          <div class="section-title">Evidence Photos</div>
-          <div class="photo-grid">
-            ${reportPhotos.map((url, i) => `
-              <div class="photo-container">
-                <img src="${url}" crossorigin="anonymous" />
-                <div class="photo-label">Photo ${i + 1}</div>
-              </div>
-            `).join('')}
+
+    // Helper to format detections per image for the PDF
+    const getAnalyzedImagesHtml = () => {
+      if (!aiData || !aiData.detections) return '';
+
+      const uniquePaths = Array.from(new Set(aiData.detections.map((d: any) => d.local_output_path).filter(Boolean)));
+      if (uniquePaths.length === 0 && aiData.local_output_path) uniquePaths.push(aiData.local_output_path);
+
+      return `
+        <div class="card mt-8 border-blue-100 shadow-sm overflow-hidden" style="border: 1px solid #dbeafe; border-radius: 12px; margin-top: 32px;">
+          <div class="card-header bg-white p-5 border-b border-blue-100" style="padding: 20px; border-bottom: 1px solid #dbeafe;">
+            <h4 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2" style="font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">
+              Analyzed Imagery (${aiData.total_images_analyzed || 1})
+            </h4>
+          </div>
+          <div class="card-content p-5" style="padding: 20px;">
+            <div class="gallery-grid">
+              ${uniquePaths.map((path: any, idx) => {
+        const detections = aiData.detections.filter((d: any) => d.local_output_path === path);
+        return `
+                  <div class="gallery-item" style="margin-bottom: 24px;">
+                    <div class="analyzed-image-container">
+                      <img src="${photoUrlsMap[`ai_${path}`] || ''}" crossorigin="anonymous" />
+                      <div class="img-badge">Img ${idx + 1}</div>
+                    </div>
+                    <div class="detections-box">
+                      <h5 class="detections-title text-gray-400 uppercase tracking-wider">Visual Detections</h5>
+                      ${detections.length > 0 ? detections.map((d: any) => `
+                        <div class="detection-row">
+                          <div class="detection-label-row">
+                            <span class="badge badge-blue">${Math.round(d.confidence * 100)}%</span>
+                            <span class="detection-label text-gray-700 font-bold">${d.label}</span>
+                          </div>
+                          ${d.notes ? `<p class="detection-notes text-gray-500 italic">"${d.notes}"</p>` : ''}
+                        </div>
+                      `).join('') : '<p class="text-xs text-gray-400">No specific detections marked on this image.</p>'}
+                    </div>
+                  </div>
+                `;
+      }).join('')}
+            </div>
           </div>
         </div>
-      ` : '';
+      `;
+    };
 
     const styles = `
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         
-        @page {
-          size: A4;
-          margin: 0;
-        }
-
+        @page { size: A4; margin: 0; }
+        * { box-sizing: border-box; }
+        
         body { 
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-          padding: 40px; 
-          color: #1f2937; 
-          line-height: 1.5;
-          max-width: 1000px;
-          margin: 0 auto;
-          background: #fff;
-        }
-
-        .header { 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: center;
-          border-bottom: 2px solid #f3f4f6; 
-          margin-bottom: 40px; 
-          padding-bottom: 24px; 
-        }
-
-        .logo-text {
-          font-size: 24px;
-          font-weight: 800;
-          color: #2563eb;
-          letter-spacing: -0.02em;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .logo-dot {
-          width: 8px;
-          height: 8px;
-          background: #2563eb;
-          border-radius: 50%;
-        }
-
-        .report-title {
-          text-align: right;
-        }
-
-        .title { font-size: 24px; font-weight: 800; color: #111827; margin: 0; text-transform: uppercase; letter-spacing: 0.025em; }
-        
-        .claim-badge {
-          display: inline-block;
-          background: #eff6ff;
-          color: #1e40af;
-          padding: 6px 12px;
-          border-radius: 8px;
-          font-family: 'Inter', sans-serif;
-          font-weight: 700;
-          font-size: 13px;
-          margin-top: 8px;
-          border: 1px solid #dbeafe;
-        }
-
-        .section { margin-bottom: 40px; page-break-inside: avoid; }
-        
-        .section-title { 
-          font-size: 13px; 
-          font-weight: 700; 
-          color: #6b7280; 
-          text-transform: uppercase; 
-          letter-spacing: 0.1em;
-          margin-bottom: 16px; 
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .section-title::after {
-          content: "";
-          flex: 1;
-          height: 1px;
-          background: #f3f4f6;
-        }
-
-        .info-grid { 
-          display: grid; 
-          grid-template-cols: repeat(2, 1fr); 
-          gap: 40px; 
-          background: #f9fafb;
-          padding: 24px;
-          border-radius: 16px;
-          border: 1px solid #f3f4f6;
-        }
-
-        .data-item { margin-bottom: 0; }
-        .label { font-weight: 600; color: #9ca3af; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-        .value { font-size: 14px; font-weight: 500; color: #111827; }
-
-        .description-content { 
-          font-size: 14px; 
-          color: #374151;
-          background: #fff;
-          padding: 20px;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-          white-space: pre-wrap;
-        }
-
-        /* AI Assessment Card */
-        .ai-card {
-          border: 1px solid #dbeafe;
-          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-          padding: 32px;
-          border-radius: 20px;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .ai-status-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-        }
-
-        .assessment-text {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1e40af;
-          margin-bottom: 24px;
+          font-family: 'Inter', sans-serif; 
+          padding: 30px; 
+          color: #111827; 
           line-height: 1.4;
-        }
-
-        .ai-grid {
-          display: grid;
-          grid-template-cols: repeat(2, 1fr);
-          gap: 24px;
-        }
-
-        .ai-list-title {
-          font-size: 11px;
-          font-weight: 700;
-          color: #0369a1;
-          text-transform: uppercase;
-          margin-bottom: 12px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .ai-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .ai-list li {
-          font-size: 13px;
-          color: #0c4a6e;
-          margin-bottom: 8px;
-          padding-left: 20px;
-          position: relative;
-        }
-
-        .ai-list li::before {
-          content: "→";
-          position: absolute;
-          left: 0;
-          color: #0ea5e9;
-          font-weight: bold;
-        }
-
-        /* Photo Gallery */
-        .photo-grid {
-          display: grid;
-          grid-template-cols: repeat(3, 1fr);
-          gap: 16px;
-        }
-
-        .photo-container {
-          aspect-ratio: 4/3;
-          border-radius: 12px;
-          overflow: hidden;
-          border: 1px solid #e5e7eb;
-          background: #f3f4f6;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .photo-container img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .photo-label {
           background: #fff;
-          padding: 8px;
-          font-size: 10px;
-          font-weight: 600;
-          text-align: center;
-          border-top: 1px solid #e5e7eb;
-          color: #6b7280;
+          max-width: 1200px;
+          margin: 0 auto;
         }
 
-        .footer { 
-          margin-top: 80px; 
-          padding-top: 32px;
-          border-top: 1px solid #f3f4f6;
-          font-size: 11px; 
-          color: #9ca3af; 
-          display: flex;
-          justify-content: space-between;
+        .flex { display: flex; }
+        .justify-between { justify-content: space-between; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .mt-8 { margin-top: 32px; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 12px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-6 { margin-bottom: 24px; }
+        
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        .font-black { font-weight: 900; }
+        .font-mono { font-family: ui-monospace, monospace; }
+        .text-gray-900 { color: #111827; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-400 { color: #9ca3af; }
+        .text-blue-600 { color: #2563eb; }
+        .uppercase { text-transform: uppercase; }
+        .tracking-widest { letter-spacing: 0.1em; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .tracking-tighter { letter-spacing: -0.05em; }
+
+        .card { border-radius: 12px; border: 1px solid #e5e7eb; background: #fff; overflow: hidden; }
+        .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        .border-blue-100 { border-color: #dbeafe; }
+        .bg-blue-600 { background-color: #2563eb; }
+        .bg-blue-50 { background-color: #eff6ff; }
+        .bg-red-50 { background-color: #fef2f2; }
+        .bg-white { background-color: #fff; }
+
+        .header-section { margin-bottom: 20px; }
+        .name-title { font-size: 1.25rem; font-weight: 800; color: #111827; }
+        
+        .action-bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 24px; }
+        .dummy-button {
+          padding: 6px 12px; border-radius: 6px; border: 1px solid #e5e7eb;
+          font-size: 12px; font-weight: 600; color: #374151; background: #fff;
+          display: flex; align-items: center; gap: 4px; border: 1px solid #e5e7eb;
         }
 
-        .footer-brand { font-weight: 700; color: #374151; }
+        .info-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 40px; margin-bottom: 24px; }
+        .info-col { display: flex; flex-direction: column; gap: 16px; }
+        
+        .label-caps { font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .value-text { font-size: 13px; color: #111827; }
+
+        .photos-section { margin-top: 24px; }
+        .photos-grid { display: grid; grid-template-cols: repeat(4, 1fr); gap: 12px; margin-top: 8px; }
+        .photo-item { border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; position: relative; }
+        .photo-item img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+        .photo-caption { font-size: 9px; color: #6b7280; text-align: center; padding: 4px; }
+
+        .ai-card { border: 1px solid #dbeafe; background: rgba(239, 246, 255, 0.1); margin-top: 32px; border-radius: 12px; overflow: hidden; }
+        .ai-card-header { background: #2563eb; color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .ai-title { font-size: 1.25rem; font-weight: 800; }
+        .ai-badge { background: rgba(30, 64, 175, 0.4); border: 1px solid rgba(255, 255, 255, 0.4); padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 600; color: #fff; }
+
+        .ai-verdict-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 24px; padding: 24px; }
+        .verdict-card { background: #fff; border: 1px solid #dbeafe; padding: 20px; border-radius: 12px; }
+        .verdict-title { font-size: 10px; font-weight: 900; color: #2563eb; text-transform: uppercase; margin-bottom: 12px; }
+        .verdict-value { font-size: 1.875rem; font-weight: 900; color: #111827; text-transform: capitalize; }
+        
+        .match-badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid; }
+        .match-green { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .match-yellow { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
+
+        .gallery-grid { display: grid; grid-template-cols: 1fr; gap: 24px; }
+        .analyzed-image-container { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; aspect-ratio: 16/9; background: #f9fafb; display: flex; align-items: center; justify-content: center; }
+        .analyzed-image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .img-badge { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+
+        .detections-box { background: #f9fafb; border-radius: 6px; padding: 12px; border: 1px solid #f3f4f6; margin-top: 12px; }
+        .detections-title { font-size: 10px; font-weight: 700; margin-bottom: 8px; }
+        .detection-row { border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 8px; }
+        .detection-row:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+        .detection-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .badge { padding: 2px 4px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+        .badge-blue { background: #dbeafe; color: #1d4ed8; }
+        .detection-notes { font-size: 10px; padding-left: 0; color: #6b7280; }
+
+        .bullets-grid { display: grid; grid-template-cols: 2fr 1.2fr; gap: 24px; padding: 0 24px 24px 24px; }
+        .evidence-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 11px; }
+        .bullet-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        
+        .risk-card { background: rgba(254, 242, 242, 0.4); border: 1px solid #fee2e2; padding: 20px; border-radius: 12px; }
+        .risk-title { font-size: 12px; font-weight: 900; color: #991b1b; text-transform: uppercase; margin-bottom: 16px; }
+        .risk-signal { font-size: 10px; font-weight: 700; color: #b91c1c; display: flex; gap: 8px; margin-bottom: 8px; }
 
         @media print {
-          body { padding: 40px; -webkit-print-color-adjust: exact; }
-          .ai-card { background: #f0f9ff !important; border: 1px solid #dbeafe !important; }
+          body { padding: 30px; -webkit-print-color-adjust: exact; }
+          .card { page-break-inside: avoid; }
         }
       </style>
     `;
 
-    const aiSection = aiData && aiData.status !== 'pending' ? `
-      <div class="section">
-        <div class="section-title">AI System Assessment</div>
-        <div class="ai-card">
-          <div class="ai-status-header">
-            <div class="value" style="color: #0369a1; font-weight: 800;">CONFIDENCE: ${aiData.peril_match?.match || 'HIGH'}</div>
-            <div class="claim-badge" style="margin:0; background:#fff;">${aiData.peril_match?.reported_peril?.toUpperCase() || 'GENERAL'} DAMAGE DETECTED</div>
+    const aiSectionHtml = aiData && aiData.status !== 'pending' ? `
+      <div class="card ai-card shadow-sm">
+        <div class="ai-card-header">
+          <div>
+            <div class="ai-title">AI Damage Assessment</div>
+            <div class="text-xs text-blue-100 mt-1">Computer vision analysis of incident evidence</div>
           </div>
-          
-          <div class="assessment-text">
-            ${aiData.final_assessment}
-          </div>
-          
-          <div class="ai-grid">
-            <div>
-              <div class="ai-list-title">Evidence & Patterns</div>
-              <ul class="ai-list">
-                ${aiData.evidence_bullets?.map((b: string) => `<li>${b}</li>`).join('') || '<li>Visual indicators identified in high-resolution scans.</li>'}
-              </ul>
+          <div class="ai-badge">${aiData.total_images_analyzed || 1} Images Analyzed</div>
+        </div>
+        
+        <div class="ai-verdict-grid">
+          <div class="verdict-card shadow-sm">
+            <div class="verdict-title tracking-widest">AI Verdict</div>
+            <div class="flex items-center gap-4">
+              <span class="verdict-value">${aiData.final_assessment}</span>
+              <span style="color: #22c55e; font-size: 24px;">✔</span>
             </div>
-            <div>
-              <div class="ai-list-title">Fraud & Consistency Flags</div>
-              <ul class="ai-list">
-                ${aiData.fraud_signals?.map((s: string) => `<li>${s}</li>`).join('') || '<li>No significant risk signals identified.</li>'}
-              </ul>
+            <p class="text-sm text-gray-600 mt-3 font-medium">
+              Primary damage identified as <span class="text-blue-600 font-bold">${aiData.final_assessment}</span>.
+            </p>
+          </div>
+
+          <div class="verdict-card shadow-sm">
+            <div class="verdict-title tracking-widest">Peril Match Analysis</div>
+            <div class="flex justify-between items-center mb-4">
+              <div>
+                <div class="text-[10px] text-gray-400 font-bold uppercase">Reported Peril</div>
+                <div class="text-sm font-bold text-gray-800 capitalize">${aiData.peril_match?.reported_peril || 'Unknown'}</div>
+              </div>
+              <span class="match-badge ${aiData.peril_match?.match === 'match' ? 'match-green' : 'match-yellow'}">
+                ${(aiData.peril_match?.match || 'UNKNOWN').replace('_', ' ').toUpperCase()}
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 italic border-l-2 border-blue-200 pl-3">
+              "${aiData.peril_match?.reason || 'No specific reason provided'}"
+            </p>
+          </div>
+        </div>
+
+        ${getAnalyzedImagesHtml()}
+
+        <div class="bullets-grid">
+          <div style="border-top: 1px solid #f3f4f6; padding-top: 24px;">
+            <h4 class="label-caps mb-4" style="color: #166534">Evidence Bullets</h4>
+            <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 16px;">
+              ${aiData.evidence_bullets?.map((bullet: string) => `
+                <div class="evidence-row">
+                  <div class="bullet-dot"></div>
+                  <span>${bullet}</span>
+                </div>
+              `).join('') || ''}
+            </div>
+          </div>
+
+          <div class="risk-card" style="margin-top: 24px;">
+            <div class="risk-title">Risk Indicators</div>
+            <div class="space-y-3">
+              ${aiData.fraud_signals?.map((signal: string) => `
+                <div class="risk-signal">
+                  <span>⚠</span>
+                  <span>${signal}</span>
+                </div>
+              `).join('') || '<p class="text-xs text-green-700 italic font-medium">No fraud signals identified.</p>'}
             </div>
           </div>
         </div>
@@ -536,74 +501,108 @@ export default function ReportsPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>PREDICTIF REPORT - ${report.claimNumber}</title>
+          <title>${report.firstName} ${report.lastName} - Report Replication</title>
           ${styles}
         </head>
         <body>
-          <div class="header">
-            <div class="logo-text">
-              <div class="logo-dot"></div>
-              PREDICTIF<span style="color:#d1d5db; margin-left:2px;">AI</span>
-            </div>
-            <div class="report-title">
-              <h1 class="title">Incident Summary</h1>
-              <div class="claim-badge">CASE REF: ${report.claimNumber}</div>
-            </div>
+          <div class="action-bar">
+            <div class="dummy-button">${report.status || 'Submitted'} ↕</div>
+            <div class="dummy-button" style="color: #2563eb; border-color: #bfdbfe;">✦ Analyze with AI</div>
+            <div class="dummy-button">⤓ Export</div>
+            <div class="dummy-button">✎ Edit</div>
+            <div class="dummy-button" style="color: #dc2626; border-color: #fecaca;">🗑 Delete</div>
           </div>
 
-          <div class="section">
-            <div class="section-title">Client & Submission Metadata</div>
-            <div class="info-grid">
-              <div class="col">
-                <div class="data-item">
-                  <div class="label">Primary Insured</div>
-                  <div class="value">${report.firstName} ${report.lastName}</div>
-                </div>
-                <div class="data-item" style="margin-top:20px;">
-                  <div class="label">Contact Information</div>
-                  <div class="value">${report.email}</div>
-                  <div class="value">${report.phone}</div>
-                </div>
+          <div class="header-section">
+            <h1 class="name-title">${report.firstName} ${report.lastName}</h1>
+            <p class="text-sm text-gray-600 mb-1">Claim #: <span class="font-mono text-xs font-semibold">${report.claimNumber}</span></p>
+            <p class="text-sm text-gray-400 mb-1">ID: <span class="font-mono text-xs">${report.id}</span></p>
+            ${report.companyName ? `<p class="text-sm text-blue-600 font-bold">Company: ${report.companyName}</p>` : ''}
+          </div>
+
+          <div class="info-grid">
+            <div class="info-col">
+              <div>
+                <div class="label-caps">Contact</div>
+                <div class="value-text">${report.email}</div>
+                <div class="value-text">${report.phone}</div>
               </div>
-              <div class="col">
-                <div class="data-item">
-                  <div class="label">Incident Location</div>
-                  <div class="value">${report.address}${report.apartment ? `, Apt ${report.apartment}` : ''}</div>
-                  <div class="value">${report.city}, ${report.state} ${report.zip}</div>
-                </div>
-                <div class="data-item" style="margin-top:20px;">
-                  <div class="label">Timestamp Details</div>
-                  <div class="value">Event: ${report.incidentDate}</div>
-                  <div class="value">Logged: ${new Date(report.submittedAt || report.createdAt).toLocaleDateString()}</div>
-                </div>
+              <div>
+                <div class="label-caps">Incident Date</div>
+                <div class="value-text">${formatDateOnly(report.incidentDate)}</div>
               </div>
             </div>
+            <div class="info-col">
+              <div>
+                <div class="label-caps">Location</div>
+                <div class="value-text">${report.address}${report.apartment ? `, Apt ${report.apartment}` : ''}</div>
+                <div class="value-text">${report.city}, ${report.state} ${report.zip}</div>
+              </div>
+              <div>
+                <div class="label-caps">Submitted</div>
+                <div class="value-text">${formatDate(report.submittedAt || report.createdAt)}</div>
+              </div>
+            </div>
           </div>
 
-          <div class="section">
-            <div class="section-title">Submission Narrative</div>
-            <div class="description-content">${report.description}</div>
+          <div class="mb-6">
+            <div class="label-caps">Description</div>
+            <div class="value-text" style="white-space: pre-wrap;">${report.description}</div>
           </div>
 
-          ${aiSection}
-
-          ${photoGridHtml}
-
-          <div class="footer">
-            <div>
-              Generated on ${new Date().toLocaleString()} &bull; Document ID: ${report.id}
+          ${report.shingleExposure ? `
+            <div class="mb-6">
+              <div class="label-caps">Shingle Exposure</div>
+              <div class="value-text">${report.shingleExposure} inches</div>
             </div>
-            <div class="footer-brand">
-              &copy; PREDICTIF TECHNOLOGY GROUP
+          ` : ''}
+
+          <div class="photos-section">
+            <div class="label-caps">Photos</div>
+            <div class="photos-grid">
+              ${reportPhotos.map((url, i) => `
+                <div class="photo-item shadow-sm">
+                  <img src="${url}" crossorigin="anonymous" />
+                  <div class="photo-caption">Photo ${i + 1}</div>
+                </div>
+              `).join('')}
             </div>
+          </div>
+
+          ${aiSectionHtml}
+
+          <div class="mt-8 text-center text-xs text-gray-400">
+            Internal Predictif AI Audit Log &bull; ${new Date().toLocaleString()} &bull; Page 1
           </div>
 
           <script>
             window.onload = () => {
-              // Wait for fonts and images to potentially load
-              setTimeout(() => {
-                window.print();
-              }, 1200); 
+              const imgs = document.getElementsByTagName('img');
+              let loaded = 0;
+              const total = imgs.length;
+              
+              const startPrint = () => {
+                setTimeout(() => { window.print(); }, 1500);
+              };
+
+              if (total === 0) startPrint();
+              else {
+                Array.from(imgs).forEach(img => {
+                  if (img.complete) {
+                    loaded++;
+                    if (loaded === total) startPrint();
+                  } else {
+                    img.onload = () => {
+                      loaded++;
+                      if (loaded === total) startPrint();
+                    };
+                    img.onerror = () => {
+                      loaded++;
+                      if (loaded === total) startPrint();
+                    };
+                  }
+                });
+              }
             }
           </script>
         </body>
