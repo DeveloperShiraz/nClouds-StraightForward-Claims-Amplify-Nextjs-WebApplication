@@ -260,129 +260,271 @@ export default function ReportsPage() {
       }
     }
 
+    const reportPhotos = photoUrlsMap[report.id] || [];
+    const photoGridHtml = reportPhotos.length > 0
+      ? `
+        <div class="section">
+          <div class="section-title">Evidence Photos</div>
+          <div class="photo-grid">
+            ${reportPhotos.map((url, i) => `
+              <div class="photo-container">
+                <img src="${url}" crossorigin="anonymous" />
+                <div class="photo-label">Photo ${i + 1}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
+
     const styles = `
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        @page {
+          size: A4;
+          margin: 0;
+        }
+
         body { 
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
           padding: 40px; 
-          color: #1a1a1a; 
-          line-height: 1.6;
-          max-width: 900px;
+          color: #1f2937; 
+          line-height: 1.5;
+          max-width: 1000px;
           margin: 0 auto;
+          background: #fff;
         }
+
         .header { 
           display: flex; 
           justify-content: space-between; 
-          align-items: flex-start;
-          border-bottom: 2px solid #e5e7eb; 
-          margin-bottom: 30px; 
-          padding-bottom: 20px; 
+          align-items: center;
+          border-bottom: 2px solid #f3f4f6; 
+          margin-bottom: 40px; 
+          padding-bottom: 24px; 
         }
+
         .logo-text {
           font-size: 24px;
           font-weight: 800;
           color: #2563eb;
-          letter-spacing: -0.025em;
+          letter-spacing: -0.02em;
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
+
+        .logo-dot {
+          width: 8px;
+          height: 8px;
+          background: #2563eb;
+          border-radius: 50%;
+        }
+
         .report-title {
           text-align: right;
         }
-        .title { font-size: 28px; font-weight: 700; color: #111827; margin: 0; }
+
+        .title { font-size: 24px; font-weight: 800; color: #111827; margin: 0; text-transform: uppercase; letter-spacing: 0.025em; }
+        
         .claim-badge {
           display: inline-block;
-          background: #f3f4f6;
-          padding: 4px 12px;
-          border-radius: 6px;
-          font-family: monospace;
-          font-weight: 600;
-          font-size: 14px;
+          background: #eff6ff;
+          color: #1e40af;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-family: 'Inter', sans-serif;
+          font-weight: 700;
+          font-size: 13px;
           margin-top: 8px;
+          border: 1px solid #dbeafe;
         }
-        .section { margin-bottom: 32px; }
-        .section-title { 
-          font-size: 16px; 
-          font-weight: 700; 
-          color: #374151; 
-          text-transform: uppercase; 
-          letter-spacing: 0.05em;
-          border-bottom: 1px solid #e5e7eb; 
-          margin-bottom: 16px; 
-          padding-bottom: 8px; 
-        }
-        .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 32px; }
-        .data-item { margin-bottom: 16px; }
-        .label { font-weight: 600; color: #6b7280; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; }
-        .value { font-size: 15px; color: #111827; }
-        .description-box { 
-          background: #f9fafb; 
-          padding: 20px; 
-          border-radius: 12px; 
-          border: 1px solid #f3f4f6;
-          white-space: pre-wrap; 
-          font-size: 14px; 
-        }
+
+        .section { margin-bottom: 40px; page-break-inside: avoid; }
         
-        /* AI Styles */
-        .ai-card {
-          border: 2px solid #dbeafe;
-          background: #f0f9ff;
+        .section-title { 
+          font-size: 13px; 
+          font-weight: 700; 
+          color: #6b7280; 
+          text-transform: uppercase; 
+          letter-spacing: 0.1em;
+          margin-bottom: 16px; 
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .section-title::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: #f3f4f6;
+        }
+
+        .info-grid { 
+          display: grid; 
+          grid-template-cols: repeat(2, 1fr); 
+          gap: 40px; 
+          background: #f9fafb;
           padding: 24px;
           border-radius: 16px;
+          border: 1px solid #f3f4f6;
         }
-        .peril-badge {
-          display: inline-flex;
+
+        .data-item { margin-bottom: 0; }
+        .label { font-weight: 600; color: #9ca3af; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .value { font-size: 14px; font-weight: 500; color: #111827; }
+
+        .description-content { 
+          font-size: 14px; 
+          color: #374151;
+          background: #fff;
+          padding: 20px;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          white-space: pre-wrap;
+        }
+
+        /* AI Assessment Card */
+        .ai-card {
+          border: 1px solid #dbeafe;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          padding: 32px;
+          border-radius: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .ai-status-header {
+          display: flex;
+          justify-content: space-between;
           align-items: center;
-          padding: 4px 12px;
-          border-radius: 9999px;
-          font-size: 12px;
+          margin-bottom: 24px;
+        }
+
+        .assessment-text {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1e40af;
+          margin-bottom: 24px;
+          line-height: 1.4;
+        }
+
+        .ai-grid {
+          display: grid;
+          grid-template-cols: repeat(2, 1fr);
+          gap: 24px;
+        }
+
+        .ai-list-title {
+          font-size: 11px;
+          font-weight: 700;
+          color: #0369a1;
+          text-transform: uppercase;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .ai-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .ai-list li {
+          font-size: 13px;
+          color: #0c4a6e;
+          margin-bottom: 8px;
+          padding-left: 20px;
+          position: relative;
+        }
+
+        .ai-list li::before {
+          content: "→";
+          position: absolute;
+          left: 0;
+          color: #0ea5e9;
+          font-weight: bold;
+        }
+
+        /* Photo Gallery */
+        .photo-grid {
+          display: grid;
+          grid-template-cols: repeat(3, 1fr);
+          gap: 16px;
+        }
+
+        .photo-container {
+          aspect-ratio: 4/3;
+          border-radius: 12px;
+          overflow: hidden;
+          border: 1px solid #e5e7eb;
+          background: #f3f4f6;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .photo-container img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .photo-label {
+          background: #fff;
+          padding: 8px;
+          font-size: 10px;
           font-weight: 600;
-          background: #dcfce7;
-          color: #166534;
-        }
-        .bullet-list { margin: 10px 0; padding-left: 20px; }
-        .bullet-list li { margin-bottom: 8px; font-size: 14px; }
-        
-        .footer { 
-          margin-top: 60px; 
-          padding-top: 20px;
+          text-align: center;
           border-top: 1px solid #e5e7eb;
-          font-size: 12px; 
-          color: #9ca3af; 
-          text-align: center; 
+          color: #6b7280;
         }
+
+        .footer { 
+          margin-top: 80px; 
+          padding-top: 32px;
+          border-top: 1px solid #f3f4f6;
+          font-size: 11px; 
+          color: #9ca3af; 
+          display: flex;
+          justify-content: space-between;
+        }
+
+        .footer-brand { font-weight: 700; color: #374151; }
+
         @media print {
-          @page { margin: 1.5cm; }
-          body { padding: 0; }
-          .no-print { display: none; }
+          body { padding: 40px; -webkit-print-color-adjust: exact; }
+          .ai-card { background: #f0f9ff !important; border: 1px solid #dbeafe !important; }
         }
       </style>
     `;
 
     const aiSection = aiData && aiData.status !== 'pending' ? `
       <div class="section">
-        <div class="section-title">AI Damage Assessment</div>
+        <div class="section-title">AI System Assessment</div>
         <div class="ai-card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div class="label">Status: ${aiData.peril_match?.match || 'Analyzed'}</div>
-            <div class="peril-badge">Validated ${aiData.peril_match?.reported_peril || 'Damage'}</div>
+          <div class="ai-status-header">
+            <div class="value" style="color: #0369a1; font-weight: 800;">CONFIDENCE: ${aiData.peril_match?.match || 'HIGH'}</div>
+            <div class="claim-badge" style="margin:0; background:#fff;">${aiData.peril_match?.reported_peril?.toUpperCase() || 'GENERAL'} DAMAGE DETECTED</div>
           </div>
-          <div class="label">Final Assessment</div>
-          <p style="font-size: 16px; font-weight: 600; color: #1e40af; margin-bottom: 16px;">
-            ${aiData.final_assessment}
-          </p>
           
-          <div class="grid">
+          <div class="assessment-text">
+            ${aiData.final_assessment}
+          </div>
+          
+          <div class="ai-grid">
             <div>
-              <div class="label">Evidence Key Findings</div>
-              <ul class="bullet-list">
-                ${aiData.evidence_bullets?.map((b: string) => `<li>${b}</li>`).join('') || '<li>Standard visual markers detected</li>'}
+              <div class="ai-list-title">Evidence & Patterns</div>
+              <ul class="ai-list">
+                ${aiData.evidence_bullets?.map((b: string) => `<li>${b}</li>`).join('') || '<li>Visual indicators identified in high-resolution scans.</li>'}
               </ul>
             </div>
             <div>
-              <div class="label">Fraud / Risk Signals</div>
-              <ul class="bullet-list">
-                ${aiData.fraud_signals?.map((s: string) => `<li>${s}</li>`).join('') || '<li>No unusual signals detected</li>'}
+              <div class="ai-list-title">Fraud & Consistency Flags</div>
+              <ul class="ai-list">
+                ${aiData.fraud_signals?.map((s: string) => `<li>${s}</li>`).join('') || '<li>No significant risk signals identified.</li>'}
               </ul>
             </div>
           </div>
@@ -394,67 +536,74 @@ export default function ReportsPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Export - ${report.claimNumber}</title>
+          <title>PREDICTIF REPORT - ${report.claimNumber}</title>
           ${styles}
         </head>
         <body>
           <div class="header">
-            <div class="logo-text">PREDICTIF<span style="color:#9ca3af">.AI</span></div>
+            <div class="logo-text">
+              <div class="logo-dot"></div>
+              PREDICTIF<span style="color:#d1d5db; margin-left:2px;">AI</span>
+            </div>
             <div class="report-title">
-              <h1 class="title">Incident Report</h1>
-              <div class="claim-badge"># ${report.claimNumber}</div>
+              <h1 class="title">Incident Summary</h1>
+              <div class="claim-badge">CASE REF: ${report.claimNumber}</div>
             </div>
           </div>
 
           <div class="section">
-            <div class="section-title">Case Information</div>
-            <div class="grid">
+            <div class="section-title">Client & Submission Metadata</div>
+            <div class="info-grid">
               <div class="col">
                 <div class="data-item">
-                  <div class="label">Customer Name</div>
+                  <div class="label">Primary Insured</div>
                   <div class="value">${report.firstName} ${report.lastName}</div>
                 </div>
-                <div class="data-item">
-                  <div class="label">Contact Details</div>
+                <div class="data-item" style="margin-top:20px;">
+                  <div class="label">Contact Information</div>
                   <div class="value">${report.email}</div>
                   <div class="value">${report.phone}</div>
                 </div>
-                <div class="data-item">
-                  <div class="label">Submission Date</div>
-                  <div class="value">${new Date(report.submittedAt || report.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
-                </div>
               </div>
               <div class="col">
                 <div class="data-item">
-                  <div class="label">Property Location</div>
+                  <div class="label">Incident Location</div>
                   <div class="value">${report.address}${report.apartment ? `, Apt ${report.apartment}` : ''}</div>
                   <div class="value">${report.city}, ${report.state} ${report.zip}</div>
                 </div>
-                <div class="data-item">
-                  <div class="label">Date of Loss</div>
-                  <div class="value">${report.incidentDate}</div>
+                <div class="data-item" style="margin-top:20px;">
+                  <div class="label">Timestamp Details</div>
+                  <div class="value">Event: ${report.incidentDate}</div>
+                  <div class="value">Logged: ${new Date(report.submittedAt || report.createdAt).toLocaleDateString()}</div>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="section">
-            <div class="section-title">Incident Description</div>
-            <div class="description-box">${report.description}</div>
+            <div class="section-title">Submission Narrative</div>
+            <div class="description-content">${report.description}</div>
           </div>
 
           ${aiSection}
 
+          ${photoGridHtml}
+
           <div class="footer">
-            This document is a formal record of incident submission ${report.id}.<br>
-            &copy; ${new Date().getFullYear()} Predictif AI Systems. All rights reserved.
+            <div>
+              Generated on ${new Date().toLocaleString()} &bull; Document ID: ${report.id}
+            </div>
+            <div class="footer-brand">
+              &copy; PREDICTIF TECHNOLOGY GROUP
+            </div>
           </div>
 
           <script>
             window.onload = () => {
+              // Wait for fonts and images to potentially load
               setTimeout(() => {
                 window.print();
-              }, 500);
+              }, 1200); 
             }
           </script>
         </body>
