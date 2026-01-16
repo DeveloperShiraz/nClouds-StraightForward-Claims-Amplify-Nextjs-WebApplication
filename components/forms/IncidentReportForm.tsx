@@ -368,8 +368,9 @@ export function IncidentReportForm({
     const validFiles: FileWithPreview[] = [];
 
     Array.from(fileList).forEach((file) => {
-      // Check file type
-      if (file.type === "image/jpeg" || file.type === "image/png") {
+      // Check file type: JPEG, PNG, GIF
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+      if (allowedTypes.includes(file.type)) {
         const fileWithPreview = Object.assign(file, {
           preview: URL.createObjectURL(file),
         });
@@ -780,7 +781,7 @@ export function IncidentReportForm({
                   <input
                     type="file"
                     multiple
-                    accept=".jpg,.jpeg,.png"
+                    accept=".jpg,.jpeg,.png,.gif"
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files) {
@@ -791,7 +792,7 @@ export function IncidentReportForm({
                 </label>
               </p>
               <p className="text-xs text-muted-foreground">
-                *Note: We only accept .JPG, .PNG file formats*
+                *Note: We only accept .JPG, .PNG, .GIF file formats*
               </p>
             </div>
 

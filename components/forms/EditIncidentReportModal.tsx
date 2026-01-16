@@ -199,7 +199,13 @@ export function EditIncidentReportModal({
   const handleAddNewPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const fileArray = Array.from(files);
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+      const fileArray = Array.from(files).filter(file => allowedTypes.includes(file.type));
+
+      if (fileArray.length < files.length) {
+        alert("Some files were skipped. Only JPEG, PNG, and GIF are allowed.");
+      }
+
       setNewPhotos([...newPhotos, ...fileArray]);
     }
   };
@@ -675,11 +681,14 @@ export function EditIncidentReportModal({
                     <input
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept=".jpg,.jpeg,.png,.gif"
                       onChange={handleAddNewPhotos}
                       className="hidden"
                     />
                   </label>
+                  <p className="text-xs text-gray-500">
+                    *Only .JPG, .PNG, .GIF allowed*
+                  </p>
                   <p className="text-xs text-gray-500">
                     {photoSignedUrls.length + newPhotos.length} photo(s) total
                   </p>
