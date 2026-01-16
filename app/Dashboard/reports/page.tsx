@@ -244,6 +244,34 @@ export default function ReportsPage() {
     }
   };
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      console.log(`Updating status for report ${id} to ${newStatus}`);
+      const response = await fetch(`/api/incident-reports/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        // Update local state
+        setReports(prev => prev.map(report =>
+          report.id === id ? { ...report, status: newStatus } : report
+        ));
+        console.log("✅ Status updated successfully");
+      } else {
+        const data = await response.json();
+        console.error("❌ Failed to update status:", data.error);
+        alert(`Failed to update status: ${data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+      alert(`Error updating status: ${error.message}`);
+    }
+  };
+
   const handleEdit = (report: IncidentReport) => {
     setEditingReport(report);
   };
@@ -423,7 +451,24 @@ export default function ReportsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {getStatusBadge(report.status)}
+                  {/* Status Dropdown for Admins/Reporters, Badge for others */}
+                  {(isAdmin || isIncidentReporter || isSuperAdmin) ? (
+                    <Select
+                      value={report.status || "submitted"}
+                      onValueChange={(value) => handleStatusChange(report.id, value)}
+                    >
+                      <SelectTrigger className="w-[140px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="submitted">Submitted</SelectItem>
+                        <SelectItem value="in_review">In Review</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    getStatusBadge(report.status)
+                  )}
                   {/* Only admins and incident reporters can edit their reports */}
                   {(isAdmin || isIncidentReporter || isSuperAdmin) && (
                     <Button

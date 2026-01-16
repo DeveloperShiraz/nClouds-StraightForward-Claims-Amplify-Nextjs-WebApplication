@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Heading from "@/components/ui/Heading";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import type { NextPage } from "next";
@@ -10,8 +10,11 @@ const Dashboard: NextPage = () => {
   const router = useRouter();
   const { isAdmin, isIncidentReporter, isCustomer, isLoading, userEmail } = useUserRole();
 
-  // Redirect non-admin users to their respective default pages
+  const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
+  const [loadingStats, setLoadingStats] = useState(true);
+
   useEffect(() => {
+    // Redirect logic
     if (!isLoading) {
       if (isIncidentReporter) {
         router.push("/Dashboard/incident-form");
@@ -20,6 +23,32 @@ const Dashboard: NextPage = () => {
       }
     }
   }, [isLoading, isIncidentReporter, isCustomer, router]);
+
+  useEffect(() => {
+    if (isAdmin && !isLoading) {
+      fetchStats();
+    }
+  }, [isAdmin, isLoading]);
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/incident-reports");
+      const data = await response.json();
+
+      if (response.ok && data.reports) {
+        const reports = data.reports;
+        const total = reports.length;
+        const pending = reports.filter((r: any) => r.status === "in_review").length;
+        const resolved = reports.filter((r: any) => r.status === "resolved").length;
+
+        setStats({ total, pending, resolved });
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   // Show loading state
   if (isLoading) {
@@ -45,17 +74,17 @@ const Dashboard: NextPage = () => {
         {/* Dashboard Stats Cards */}
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <h3 className="text-sm font-medium text-gray-500 mb-2">Total Reports</h3>
-          <p className="text-3xl font-bold text-gray-900">0</p>
+          <p className="text-3xl font-bold text-gray-900">{loadingStats ? "-" : stats.total}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <h3 className="text-sm font-medium text-gray-500 mb-2">Pending Review</h3>
-          <p className="text-3xl font-bold text-yellow-600">0</p>
+          <p className="text-3xl font-bold text-yellow-600">{loadingStats ? "-" : stats.pending}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <h3 className="text-sm font-medium text-gray-500 mb-2">Resolved</h3>
-          <p className="text-3xl font-bold text-green-600">0</p>
+          <p className="text-3xl font-bold text-green-600">{loadingStats ? "-" : stats.resolved}</p>
         </div>
       </div>
 
