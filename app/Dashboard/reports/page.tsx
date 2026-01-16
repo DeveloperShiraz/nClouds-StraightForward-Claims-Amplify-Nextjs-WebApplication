@@ -5,7 +5,7 @@ import { getUrl, remove } from "aws-amplify/storage";
 import { fetchAuthSession } from "aws-amplify/auth";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
-import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap, FileText } from "lucide-react";
 import { EditIncidentReportModal } from "@/components/forms/EditIncidentReportModal";
 import { AIAnalysisDisplay } from "@/components/AIAnalysisDisplay";
 import { useUserRole } from "@/lib/auth/useUserRole";
@@ -242,6 +242,227 @@ export default function ReportsPage() {
     } finally {
       setAnalyzingId(null);
     }
+  };
+
+  const handleExportPDF = (report: IncidentReport) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow pop-ups to export the report.");
+      return;
+    }
+
+    let aiData = null;
+    if (report.aiAnalysis) {
+      try {
+        aiData = typeof report.aiAnalysis === 'string' ? JSON.parse(report.aiAnalysis) : report.aiAnalysis;
+      } catch (e) {
+        console.error("Failed to parse AI analysis for PDF", e);
+      }
+    }
+
+    const styles = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { 
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+          padding: 40px; 
+          color: #1a1a1a; 
+          line-height: 1.6;
+          max-width: 900px;
+          margin: 0 auto;
+        }
+        .header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: flex-start;
+          border-bottom: 2px solid #e5e7eb; 
+          margin-bottom: 30px; 
+          padding-bottom: 20px; 
+        }
+        .logo-text {
+          font-size: 24px;
+          font-weight: 800;
+          color: #2563eb;
+          letter-spacing: -0.025em;
+        }
+        .report-title {
+          text-align: right;
+        }
+        .title { font-size: 28px; font-weight: 700; color: #111827; margin: 0; }
+        .claim-badge {
+          display: inline-block;
+          background: #f3f4f6;
+          padding: 4px 12px;
+          border-radius: 6px;
+          font-family: monospace;
+          font-weight: 600;
+          font-size: 14px;
+          margin-top: 8px;
+        }
+        .section { margin-bottom: 32px; }
+        .section-title { 
+          font-size: 16px; 
+          font-weight: 700; 
+          color: #374151; 
+          text-transform: uppercase; 
+          letter-spacing: 0.05em;
+          border-bottom: 1px solid #e5e7eb; 
+          margin-bottom: 16px; 
+          padding-bottom: 8px; 
+        }
+        .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 32px; }
+        .data-item { margin-bottom: 16px; }
+        .label { font-weight: 600; color: #6b7280; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; }
+        .value { font-size: 15px; color: #111827; }
+        .description-box { 
+          background: #f9fafb; 
+          padding: 20px; 
+          border-radius: 12px; 
+          border: 1px solid #f3f4f6;
+          white-space: pre-wrap; 
+          font-size: 14px; 
+        }
+        
+        /* AI Styles */
+        .ai-card {
+          border: 2px solid #dbeafe;
+          background: #f0f9ff;
+          padding: 24px;
+          border-radius: 16px;
+        }
+        .peril-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 12px;
+          border-radius: 9999px;
+          font-size: 12px;
+          font-weight: 600;
+          background: #dcfce7;
+          color: #166534;
+        }
+        .bullet-list { margin: 10px 0; padding-left: 20px; }
+        .bullet-list li { margin-bottom: 8px; font-size: 14px; }
+        
+        .footer { 
+          margin-top: 60px; 
+          padding-top: 20px;
+          border-top: 1px solid #e5e7eb;
+          font-size: 12px; 
+          color: #9ca3af; 
+          text-align: center; 
+        }
+        @media print {
+          @page { margin: 1.5cm; }
+          body { padding: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    `;
+
+    const aiSection = aiData && aiData.status !== 'pending' ? `
+      <div class="section">
+        <div class="section-title">AI Damage Assessment</div>
+        <div class="ai-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div class="label">Status: ${aiData.peril_match?.match || 'Analyzed'}</div>
+            <div class="peril-badge">Validated ${aiData.peril_match?.reported_peril || 'Damage'}</div>
+          </div>
+          <div class="label">Final Assessment</div>
+          <p style="font-size: 16px; font-weight: 600; color: #1e40af; margin-bottom: 16px;">
+            ${aiData.final_assessment}
+          </p>
+          
+          <div class="grid">
+            <div>
+              <div class="label">Evidence Key Findings</div>
+              <ul class="bullet-list">
+                ${aiData.evidence_bullets?.map((b: string) => `<li>${b}</li>`).join('') || '<li>Standard visual markers detected</li>'}
+              </ul>
+            </div>
+            <div>
+              <div class="label">Fraud / Risk Signals</div>
+              <ul class="bullet-list">
+                ${aiData.fraud_signals?.map((s: string) => `<li>${s}</li>`).join('') || '<li>No unusual signals detected</li>'}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    ` : '';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Export - ${report.claimNumber}</title>
+          ${styles}
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo-text">PREDICTIF<span style="color:#9ca3af">.AI</span></div>
+            <div class="report-title">
+              <h1 class="title">Incident Report</h1>
+              <div class="claim-badge"># ${report.claimNumber}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Case Information</div>
+            <div class="grid">
+              <div class="col">
+                <div class="data-item">
+                  <div class="label">Customer Name</div>
+                  <div class="value">${report.firstName} ${report.lastName}</div>
+                </div>
+                <div class="data-item">
+                  <div class="label">Contact Details</div>
+                  <div class="value">${report.email}</div>
+                  <div class="value">${report.phone}</div>
+                </div>
+                <div class="data-item">
+                  <div class="label">Submission Date</div>
+                  <div class="value">${new Date(report.submittedAt || report.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
+                </div>
+              </div>
+              <div class="col">
+                <div class="data-item">
+                  <div class="label">Property Location</div>
+                  <div class="value">${report.address}${report.apartment ? `, Apt ${report.apartment}` : ''}</div>
+                  <div class="value">${report.city}, ${report.state} ${report.zip}</div>
+                </div>
+                <div class="data-item">
+                  <div class="label">Date of Loss</div>
+                  <div class="value">${report.incidentDate}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Incident Description</div>
+            <div class="description-box">${report.description}</div>
+          </div>
+
+          ${aiSection}
+
+          <div class="footer">
+            This document is a formal record of incident submission ${report.id}.<br>
+            &copy; ${new Date().getFullYear()} Predictif AI Systems. All rights reserved.
+          </div>
+
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+              }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const handleStatusChange = async (id: string, newStatus: string) => {
@@ -486,6 +707,16 @@ export default function ReportsPage() {
                       {analyzingId === report.id ? "Analyzing..." : "Analyze with AI"}
                     </Button>
                   )}
+                  {/* Export to PDF Button */}
+                  <Button
+                    onClick={() => handleExportPDF(report)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1 border-gray-200 text-gray-700 hover:bg-gray-50"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Export
+                  </Button>
                   {(isAdmin || isIncidentReporter) && (
                     <Button
                       onClick={() => handleEdit(report)}
