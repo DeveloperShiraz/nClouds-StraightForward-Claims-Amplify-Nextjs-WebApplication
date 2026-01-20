@@ -369,7 +369,7 @@ export default function ReportsPage() {
         /* Info Grids - 3 Columns for density */
         .info-grid {
           display: grid;
-          grid-template-cols: repeat(3, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 20px;
           margin-bottom: 10px;
         }
@@ -416,16 +416,17 @@ export default function ReportsPage() {
           border: 1px solid #e2e8f0;
         }
 
-        /* Photo Grids - 4 Photos per row */
+        /* Photo Grids - 2 Photos per row (4 per page) */
         .photo-grid {
           display: grid;
-          grid-template-cols: repeat(4, 1fr);
-          gap: 10px;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 15px;
         }
         .photo-box {
           border: 1px solid #eee;
-          padding: 3px;
+          padding: 5px;
           background: #fff;
+          page-break-inside: avoid;
         }
         .photo-box img {
           width: 100%;
@@ -559,34 +560,37 @@ export default function ReportsPage() {
           <div class="report-section" style="margin-top: 0;">
             <div class="info-grid">
               <div class="info-group">
-                <div class="info-label">Subject / Claimant</div>
-                <div class="info-value">${report.firstName} ${report.lastName}</div>
-                <div class="info-value">${report.email} | ${report.phone}</div>
+                <div class="info-label">Customer Information</div>
+                <div class="info-value" style="font-weight: 700; font-size: 13px;">${report.firstName} ${report.lastName}</div>
+                <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">EMAIL:</span> ${report.email}</div>
+                <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">PHONE:</span> ${report.phone}</div>
               </div>
               <div class="info-group">
-                <div class="info-label">Incident Details</div>
-                <div class="info-value">Date: ${formatDateOnly(report.incidentDate)}</div>
-                <div class="info-value">Ref/Claim: ${report.claimNumber}</div>
+                <div class="info-label">Loss & Claim Information</div>
+                <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">DATE OF LOSS:</span> ${formatDateOnly(report.incidentDate)}</div>
+                <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">CLAIM #:</span> ${report.claimNumber}</div>
+                <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">CASE ID:</span> <span style="font-family: monospace;">${report.id.slice(0, 8).toUpperCase()}</span></div>
               </div>
               <div class="info-group">
-                <div class="info-label">Property Location</div>
+                <div class="info-label">Site Address</div>
                 <div class="info-value">${report.address}${report.apartment ? `, Apt ${report.apartment}` : ''}</div>
                 <div class="info-value">${report.city}, ${report.state} ${report.zip}</div>
+                <div class="info-value" style="margin-top: 5px;"><span style="color: #666; font-size: 9px; font-weight: 700;">STATUS:</span> <span style="text-transform: uppercase; font-weight: 700; color: #2563eb;">${(report.status || 'SUBMITTED').replace('_', ' ')}</span></div>
               </div>
-              
+            </div>
+            
+            <div class="info-grid" style="border-top: 1px solid #eee; padding-top: 10px;">
               <div class="info-group">
-                <div class="info-label">Report Generation</div>
+                <div class="info-label">Reporting Organization</div>
+                <div class="info-value">${report.companyName || 'Predictif AI Systems'}</div>
+              </div>
+              <div class="info-group">
+                <div class="info-label">Report Generated</div>
                 <div class="info-value">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
               </div>
-              ${report.companyName ? `
-                <div class="info-group">
-                  <div class="info-label">Assigned Organization</div>
-                  <div class="info-value" style="color: #2563eb;">${report.companyName}</div>
-                </div>
-              ` : ''}
               <div class="info-group">
-                <div class="info-label">Status</div>
-                <div class="info-value" style="text-transform: capitalize;">${(report.status || 'Submitted').replace('_', ' ')}</div>
+                <div class="info-label">Document Verity</div>
+                <div class="info-value" style="color: #10b981;">&check; Electronically Signed & Validated</div>
               </div>
             </div>
           </div>
