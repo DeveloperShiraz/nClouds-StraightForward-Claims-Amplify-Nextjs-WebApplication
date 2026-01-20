@@ -388,12 +388,20 @@ export default function ReportsPage() {
           font-weight: 500;
         }
 
-        /* Assessment Summary */
+        /* Assessment Summary & Findings */
         .assessment-summary {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
           padding: 12px 15px;
           border-radius: 4px;
+          margin-bottom: 15px;
+          page-break-inside: avoid;
+        }
+        .findings-container {
+          margin-bottom: 15px;
+          page-break-inside: avoid;
+        }
+        .findings-col {
           margin-bottom: 15px;
         }
         .verdict-box {
@@ -542,14 +550,14 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        <div class="info-grid">
-          <div>
+        <div class="findings-container">
+          <div class="findings-col">
             <div class="info-label">Key Evidence Findings</div>
             <ul class="findings-list">
               ${aiData.evidence_bullets?.map((bullet: string) => `<li>${bullet}</li>`).join('') || '<li>No specific evidence points flagged.</li>'}
             </ul>
           </div>
-          <div>
+          <div class="findings-col">
             <div class="info-label">Risk Consistency Indicators</div>
             <ul class="findings-list" style="color: #b91c1c;">
               ${aiData.fraud_signals?.map((signal: string) => `<li>${signal}</li>`).join('') || '<li style="color: #166534;">No risk indicators identified.</li>'}
