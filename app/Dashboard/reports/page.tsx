@@ -322,7 +322,7 @@ export default function ReportsPage() {
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
-        @page { size: A4; margin: 10mm; }
+        @page { size: A4; margin: 0; }
         * { box-sizing: border-box; }
         
         body { 
@@ -331,7 +331,7 @@ export default function ReportsPage() {
           line-height: 1.4;
           background: #fff;
           margin: 0;
-          padding: 0;
+          padding: 15mm;
           font-size: 11px;
         }
 
@@ -340,9 +340,7 @@ export default function ReportsPage() {
           border-bottom: 2px solid #000;
           padding-bottom: 5px;
           margin-bottom: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
+          text-align: left;
         }
         .report-title {
           font-size: 18px;
@@ -418,10 +416,11 @@ export default function ReportsPage() {
           border: 1px solid #e2e8f0;
         }
 
-        /* Photo Grids - 2 Photos per row (4 per page) */
+        /* Photo Grids - Centered Flex (2-column look for multiples) */
         .photo-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
           gap: 15px;
         }
         .photo-box {
@@ -429,6 +428,8 @@ export default function ReportsPage() {
           padding: 5px;
           background: #fff;
           page-break-inside: avoid;
+          width: 48%; /* Simulates 2-column look */
+          min-width: 250px;
         }
         .photo-box img {
           width: 100%;
@@ -451,6 +452,8 @@ export default function ReportsPage() {
           page-break-inside: avoid;
           display: flex;
           flex-direction: column;
+          width: 48%; /* Simulates 2-column look */
+          min-width: 250px;
         }
         .evidence-img-container img {
           width: 100%;
@@ -568,7 +571,6 @@ export default function ReportsPage() {
         <body>
           <div class="report-header">
             <h1 class="report-title">Incident Investigation Report</h1>
-            <span class="report-id">REF: ${report.id.slice(0, 8).toUpperCase()}</span>
           </div>
 
           <div class="report-section" style="margin-top: 0;">
@@ -599,8 +601,8 @@ export default function ReportsPage() {
                 <div class="info-value">${report.companyName || 'Predictif AI Systems'}</div>
               </div>
               <div class="info-group">
-                <div class="info-label">Report Generated</div>
-                <div class="info-value">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+                <div class="info-label">Date Submitted</div>
+                <div class="info-value">${report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'N/A'} ${report.createdAt ? new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
               </div>
               <div class="info-group">
                 <div class="info-label">Document Verity</div>
