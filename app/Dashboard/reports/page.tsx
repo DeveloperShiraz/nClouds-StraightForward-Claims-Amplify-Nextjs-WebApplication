@@ -510,9 +510,9 @@ export default function ReportsPage() {
 
         @media print {
           body { -webkit-print-color-adjust: exact; }
-          .report-section { page-break-inside: avoid; }
           .assessment-summary { page-break-inside: avoid; }
           .evidence-item { page-break-inside: avoid; }
+          .info-group { page-break-inside: avoid; }
           .report-header { page-break-after: avoid; }
           .section-title { page-break-after: avoid; }
         }
