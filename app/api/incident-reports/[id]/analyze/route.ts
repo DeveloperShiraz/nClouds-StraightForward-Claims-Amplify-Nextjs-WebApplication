@@ -70,9 +70,29 @@ export async function POST(
                 console.log(`✅ Found function: ${functionName}`);
 
 
+
                 const region = process.env.AWS_REGION || "us-east-1";
                 console.log(`🌍 Using region: ${region}`);
-                const lambdaClient = new LambdaClient({ region });
+
+                // Get AWS credentials from the Amplify session
+                console.log(`🔑 Fetching AWS credentials from session...`);
+                const session = await fetchAuthSession(contextSpec);
+
+                if (!session.credentials) {
+                    console.error("❌ No credentials found in session");
+                    throw new Error("Unable to obtain AWS credentials from session");
+                }
+
+                console.log(`✅ Credentials obtained successfully`);
+
+                const lambdaClient = new LambdaClient({
+                    region,
+                    credentials: {
+                        accessKeyId: session.credentials.accessKeyId,
+                        secretAccessKey: session.credentials.secretAccessKey,
+                        sessionToken: session.credentials.sessionToken,
+                    }
+                });
 
                 const payload = {
                     reportId: id,
