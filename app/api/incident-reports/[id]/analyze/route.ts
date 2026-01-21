@@ -19,15 +19,10 @@ export async function POST(
                 const { id } = await params;
                 const client = createApiClient(contextSpec);
 
-                // 1. Fetch the report to get photo paths
+                // 1. Fetch the report to check if it exists and has photos
                 const { data: report, errors: fetchErrors } = await client.models.IncidentReport.get(contextSpec, { id });
 
-                if (fetchErrors) {
-                    console.error("Errors fetching report for AI analysis:", fetchErrors);
-                    return NextResponse.json({ error: "Failed to fetch report", details: fetchErrors }, { status: 500 });
-                }
-
-                if (!report) {
+                if (fetchErrors || !report) {
                     return NextResponse.json({ error: "Report not found" }, { status: 404 });
                 }
 
@@ -35,209 +30,55 @@ export async function POST(
                     return NextResponse.json({ error: "No photos to analyze" }, { status: 400 });
                 }
 
-                // 2. Prepare payload for AI Lambda
-                const bucket = outputs.storage.bucket_name;
-
-                // Helper to map extension to Bedrock-supported media types
-                const getMediaType = (path: string) => {
-                    const ext = path.split('.').pop()?.toLowerCase();
-                    if (ext === 'png') return 'image/png';
-                    if (ext === 'webp') return 'image/webp';
-                    if (ext === 'gif') return 'image/gif';
-                    return 'image/jpeg'; // Default for jpg, jpeg, or others
-                };
-
-                // The Lambda expects s3://bucket/key
-                const images = report.photoUrls
-                    .filter((path): path is string => !!path)
-                    .map(path => ({
-                        s3_uri: `s3://${bucket}/${path}`,
-                        format: getMediaType(path)
-                    }));
-
-                const payload = {
-                    images,
-                    analysis_context: {
-                        image_id: report.id,
-                        reported_peril: "",
-                        weather_summary: `Analysis for incident on ${report.incidentDate}`,
-                        notes: report.description
-                    }
-                };
-
-                console.log("🔍 Sending payload to AI Lambda...");
-
-                // 3. Call the AI Lambda
-                const aiResponse = await fetch(AI_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    // Add a timeout if needed, though fetch timeout is tricky in Node.js
-                    // signal: AbortSignal.timeout(60000) // 60 seconds
-                });
-
-                if (!aiResponse.ok) {
-                    const errorText = await aiResponse.text();
-                    console.error("❌ AI Lambda returned error:", aiResponse.status, errorText);
-                    return NextResponse.json({
-                        error: "AI Analysis function failed",
-                        statusCode: aiResponse.status,
-                        details: errorText
-                    }, { status: aiResponse.status });
-                }
-
-                const aiResult = await aiResponse.json();
-                console.log("✅ AI Analysis result received.");
-
-                // Check for errors returned in the result body (Lambda might return 200 OK even on Bedrock errors)
-                const resultData = aiResult.result || aiResult;
-                if (resultData.error) {
-                    console.error("❌ AI Analysis failed with internal error:", resultData.error);
-                    return NextResponse.json({
-                        error: "AI Analysis failed",
-                        details: resultData.error,
-                        type: resultData.error_type
-                    }, { status: 502 }); // 502 Bad Gateway is appropriate if the upstream (Bedrock) failed
-                }
-
-                // 4. Save result back to report
-                // Based on provided JSON, the actual data is inside result.result or just aiResult.result
-                let analysisData = resultData;
-
-                // 4.1 Copy the analyzed image to our bucket if it exists
-                // 4.1 Copy ALL unique analyzed images to our bucket
-                if (analysisData.detections && analysisData.detections.length > 0) {
-                    try {
-                        // 1. Identify unique output URIs
-                        const uniqueOutputUris = new Set<string>();
-                        analysisData.detections.forEach((d: any) => {
-                            if (d.output_s3_uri) uniqueOutputUris.add(d.output_s3_uri);
-                        });
-
-                        console.log(`Found ${uniqueOutputUris.size} unique analyzed images to copy.`);
-
-                        // 2. Copy each unique image and map URI -> Local Key
-                        const uriToLocalKeyMap = new Map<string, string>();
-
-                        // FIX: Retrieve credentials from the Amplify Context (which works in Hosting)
-                        // instead of relying on environment variables which seem stripped or custom.
-                        const session = await fetchAuthSession(contextSpec);
-                        const credentials = session.credentials;
-
-                        if (!credentials) {
-                            throw new Error("Failed to retrieve credentials from Amplify Server Context");
-                        }
-
-                        console.log("✅ Successfully retrieved temporary credentials for S3 Copy");
-
-                        const s3Client = new S3Client({
-                            region: process.env.AWS_REGION || "us-east-1",
-                            credentials: credentials
-                        });
-
-                        const copyErrors: any[] = [];
-                        for (const outputS3Uri of Array.from(uniqueOutputUris)) {
-                            // ... (parsing logic)
-                            const uriParts = outputS3Uri.replace("s3://", "").split("/");
-                            const sourceBucket = uriParts.shift();
-                            const sourceKey = uriParts.join("/");
-
-                            if (sourceBucket && sourceKey) {
-                                try {
-                                    console.log("Copying analyzed image from:", outputS3Uri);
-
-                                    // Get the object from the external bucket
-                                    const getCommand = new GetObjectCommand({
-                                        Bucket: sourceBucket,
-                                        Key: sourceKey
-                                    });
-                                    const sourceObj = await s3Client.send(getCommand);
-
-                                    // Upload to our storage bucket
-                                    const uniqueSuffix = Math.random().toString(36).substring(7);
-                                    const targetKey = `incident-photos/${report.id}/analyzed-${Date.now()}-${uniqueSuffix}.jpeg`;
-
-                                    const upload = new Upload({
-                                        client: s3Client,
-                                        params: {
-                                            Bucket: outputs.storage.bucket_name,
-                                            Key: targetKey,
-                                            Body: sourceObj.Body,
-                                            ContentType: "image/jpeg"
-                                        }
-                                    });
-
-                                    await upload.done();
-                                    console.log("✅ Analyzed image copied to:", targetKey);
-                                    uriToLocalKeyMap.set(outputS3Uri, targetKey);
-                                } catch (innerCopyError: any) {
-                                    console.error(`❌ Failed to copy image ${outputS3Uri}:`, innerCopyError);
-                                    let errorMsg = innerCopyError.message;
-                                    if (innerCopyError.name === 'CredentialsProviderError') {
-                                        errorMsg += " (This usually happens when running locally without AWS credentials. Please test on the deployed site.)";
-                                    }
-                                    copyErrors.push({ uri: outputS3Uri, error: errorMsg, name: innerCopyError.name });
-                                }
-                            }
-                        }
-
-                        // ... (update detections logic uses uriToLocalKeyMap)
-
-                        // Attach copy errors to analysis data for visibility if needed, or just log
-                        if (copyErrors.length > 0) {
-                            (analysisData as any).copy_warnings = copyErrors;
-                        }
-
-                        // 3. Update detections with the correct local path (unchanged)
-                        analysisData.detections = analysisData.detections.map((d: any) => ({
-                            ...d,
-                            local_output_path: d.output_s3_uri ? uriToLocalKeyMap.get(d.output_s3_uri) : undefined
-                        }));
-
-                        // Also add a top-level summary of paths
-                        (analysisData as any).all_local_paths = Array.from(uriToLocalKeyMap.values());
-
-                    } catch (copyError) { // Outermost catch for the block
-                        // ...
-                    }
-                }
-
-                // 4.2 Save result using raw GraphQL to bypass client schema validation issues
-                console.log("Updating report with AI analysis via GraphQL...");
+                // 2. Clear previous analysis and set status to 'analyzing'
+                console.log(`Setting status to 'analyzing' for report: ${id}`);
                 const updateQuery = `
                     mutation UpdateIncidentReport($input: UpdateIncidentReportInput!) {
-                        updateIncidentReport(input: $input) {
-                            id
-                            updatedAt
-                        }
+                        updateIncidentReport(input: $input) { id }
                     }
                 `;
 
-                const response = await client.graphql(contextSpec, {
+                await client.graphql(contextSpec, {
                     query: updateQuery,
                     variables: {
                         input: {
-                            id: report.id,
-                            aiAnalysis: JSON.stringify(analysisData)
+                            id,
+                            aiAnalysis: JSON.stringify({ status: "analyzing", startTime: new Date().toISOString() })
                         }
                     }
-                }) as any;
+                });
 
-                // Check for GraphQL errors
-                if (response.errors) {
-                    console.error("❌ GraphQL errors saving AI analysis:", response.errors);
-                    return NextResponse.json({ error: "Failed to save AI analysis via GraphQL", details: response.errors }, { status: 500 });
+                // 3. Invoke the background Analyze Function
+                // We'll use the AWS SDK to invoke it asynchronously (InvocationType: 'Event')
+                const { LambdaClient, InvokeCommand } = await import("@aws-sdk/client-lambda");
+
+                // Get function name from custom outputs
+                const functionName = (outputs as any).custom?.analyzeReportFunctionName;
+                if (!functionName) {
+                    throw new Error("Analyze function name not found in configuration");
                 }
 
-                const updatedReport = response.data.updateIncidentReport;
+                const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || "us-east-1" });
+
+                console.log(`Triggering background function: ${functionName}`);
+                await lambdaClient.send(new InvokeCommand({
+                    FunctionName: functionName,
+                    InvocationType: 'Event', // This makes it asynchronous
+                    Payload: JSON.stringify({
+                        reportId: id,
+                        bucket: outputs.storage.bucket_name,
+                        region: process.env.AWS_REGION || "us-east-1",
+                        apiEndpoint: (outputs as any).data?.url // Fallback endpoint
+                    })
+                }));
 
                 return NextResponse.json({
                     success: true,
-                    analysis: analysisData
+                    message: "Analysis started in background"
                 });
 
             } catch (error: any) {
-                console.error("Error in AI analysis route:", error);
+                console.error("Error triggering AI analysis:", error);
                 return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
             }
         },

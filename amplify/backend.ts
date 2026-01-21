@@ -3,12 +3,14 @@ import { auth } from "./auth/resource.js";
 import { data } from "./data/resource.js";
 import { storage } from "./storage/resource.js";
 import { adminActions } from "./functions/admin-actions/resource.js";
+import { analyzeReport } from "./functions/analyze-report/resource.js";
 
 const backend = defineBackend({
   auth,
   data,
   storage,
   adminActions,
+  analyzeReport,
 });
 
 const { cfnUserPool } = backend.auth.resources.cfnResources;
@@ -107,10 +109,41 @@ for (const groupName of groups) {
   }
 }
 
-// Expose the function name and bucket ARN to the application via amplify_outputs.json
+// Grant the analyzeReport function permissions
+// 1. Read from AI Output bucket
+backend.analyzeReport.resources.lambda.addToRolePolicy(
+  new (await import("aws-cdk-lib/aws-iam")).PolicyStatement({
+    sid: "AllowAnalyzeReadAIOutput",
+    actions: ["s3:GetObject"],
+    resources: ["arn:aws:s3:::roof-inspection-poc-output", "arn:aws:s3:::roof-inspection-poc-output/*"],
+  })
+);
+
+// 2. Read/Write to our own storage bucket
+backend.storage.resources.bucket.grantReadWrite(backend.analyzeReport.resources.lambda);
+
+// 3. Invoke by SSR
+if (computeRole) {
+  const grantable = (computeRole as any).role || computeRole;
+  backend.analyzeReport.resources.lambda.grantInvoke(grantable);
+}
+
+// Pass AppSync API details to the function
+const analyzeLambda = backend.analyzeReport.resources.lambda as any;
+analyzeLambda.addEnvironment(
+  "AWS_APPSYNC_API_KEY",
+  backend.data.resources.cfnResources.cfnApiKey?.attrApiKey || ""
+);
+analyzeLambda.addEnvironment(
+  "AWS_APPSYNC_GRAPHQL_URL",
+  backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl || ""
+);
+
+// Expose the function names and bucket ARN to the application via amplify_outputs.json
 backend.addOutput({
   custom: {
     adminActionsFunctionName: backend.adminActions.resources.lambda.functionName,
+    analyzeReportFunctionName: backend.analyzeReport.resources.lambda.functionName,
     storageBucketArn: backend.storage.resources.bucket.bucketArn,
   },
 });

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { getUrl, remove } from "aws-amplify/storage";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { generateClient } from "aws-amplify/data";
+import type { Schema } from "@/amplify/data/resource";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
 import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap, FileText } from "lucide-react";
@@ -41,7 +43,7 @@ interface IncidentReport {
   companyId?: string | null;
   companyName?: string | null;
   submittedBy?: string;
-  aiAnalysis?: string | null;
+  aiAnalysis?: any;
 }
 
 export default function ReportsPage() {
@@ -227,21 +229,68 @@ export default function ReportsPage() {
       const data = await response.json();
 
       if (response.ok) {
-        console.log("✅ AI Analysis completed successfully");
-        // Update the local state with the new analysis
-        setReports(prev => prev.map(report =>
-          report.id === id ? { ...report, aiAnalysis: JSON.stringify(data.analysis) } : report
-        ));
+        console.log("✅ AI Analysis triggered successfully. Starting polling...");
+
+        // Polling logic: check the report every 5 seconds for up to 5 minutes
+        const client = generateClient<Schema>();
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutes (5s * 60)
+
+        const poll = async () => {
+          if (attempts >= maxAttempts) {
+            console.error("❌ Polling timed out after 5 minutes");
+            setAnalyzingId(null);
+            return;
+          }
+
+          attempts++;
+          try {
+            const { data: updatedReport } = await client.models.IncidentReport.get({ id });
+
+            if (updatedReport?.aiAnalysis) {
+              const analysis = typeof updatedReport.aiAnalysis === 'string'
+                ? JSON.parse(updatedReport.aiAnalysis)
+                : updatedReport.aiAnalysis;
+
+              if (analysis.status === "analyzing") {
+                console.log(`Still analyzing... attempt ${attempts}`);
+                setTimeout(poll, 5000);
+              } else if (analysis.status === "failed") {
+                console.error("❌ AI Analysis reported failure:", analysis.error);
+                alert(`AI Analysis failed: ${analysis.error}`);
+                setAnalyzingId(null);
+              } else {
+                console.log("✅ AI Analysis completed and data received");
+                // Update the local state with the completed analysis
+                setReports(prev => prev.map(report =>
+                  report.id === id ? { ...report, aiAnalysis: updatedReport.aiAnalysis } : report
+                ));
+                setAnalyzingId(null);
+              }
+            } else {
+              // This shouldn't happen if the API set it to 'analyzing', but safe to stay in loop
+              setTimeout(poll, 5000);
+            }
+          } catch (pollError) {
+            console.error("Error during polling:", pollError);
+            setTimeout(poll, 5000);
+          }
+        };
+
+        // Start polling
+        poll();
+
       } else {
-        console.error("❌ AI Analysis failed:", data.error);
-        alert(`AI Analysis failed: ${data.error}`);
+        console.error("❌ AI Analysis failed to start:", data.error);
+        alert(`AI Analysis failed to start: ${data.error}`);
+        setAnalyzingId(null);
       }
     } catch (error: any) {
       console.error("Error triggering AI analysis:", error);
       alert(`Error: ${error.message}`);
-    } finally {
       setAnalyzingId(null);
     }
+    // Note: setAnalyzingId(null) is handled inside the polling/error logic now
   };
 
   const handleExportPDF = async (report: IncidentReport) => {
