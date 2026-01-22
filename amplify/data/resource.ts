@@ -84,8 +84,8 @@ const schema = a.schema({
       allow.group("Customer").to(["read"]),
       // Allow public submission (unauthenticated users)
       allow.guest().to(["create"]),
-      // Allow API Key access for universal public submission (works while logged in)
-      allow.publicApiKey().to(["create"]),
+      // Allow API Key access for universal public submission and background AI analysis
+      allow.publicApiKey().to(["create", "read", "update"]),
     ]),
 
   // User Type for the custom queries

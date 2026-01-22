@@ -43,6 +43,7 @@ export const handler = async (event: { reportId: string, bucket?: string, region
         });
 
         const reportData = await response.json();
+        console.log(`📥 Fetched report data response:`, JSON.stringify(reportData));
         const report = reportData.data?.getIncidentReport;
 
         if (!report) {
@@ -181,8 +182,12 @@ export const handler = async (event: { reportId: string, bucket?: string, region
 
         if (!updateResponse.ok) {
             const err = await updateResponse.text();
+            console.error(`❌ Failed to update report:`, err);
             throw new Error(`Failed to update report: ${err}`);
         }
+
+        const updateData = await updateResponse.json();
+        console.log(`✅ Update response data:`, JSON.stringify(updateData));
 
         console.log("✅ Background AI Analysis complete!");
         return { success: true };
