@@ -1106,6 +1106,48 @@ export default function ReportsPage() {
                 </div>
               )}
 
+              {report.weatherReport && (() => {
+                try {
+                  const weather = typeof report.weatherReport === 'string'
+                    ? JSON.parse(report.weatherReport)
+                    : report.weatherReport;
+
+                  if (!weather) return null;
+
+                  return (
+                    <div className="mb-4 bg-gray-50 p-4 rounded-md border border-gray-100">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        Weather Details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {weather.reported_hail_size_inches && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Hail Size</p>
+                            <p className="text-sm text-gray-900">{weather.reported_hail_size_inches} inches</p>
+                          </div>
+                        )}
+                        {weather.weather_date && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Weather Date</p>
+                            <p className="text-sm text-gray-900">{formatDateOnly(weather.weather_date)}</p>
+                          </div>
+                        )}
+                        {weather.weather_description && (
+                          <div className="md:col-span-2">
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Description</p>
+                            <p className="text-sm text-gray-900 italic">"{weather.weather_description}"</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                } catch (e) {
+                  console.error("Error parsing weather report for display:", e);
+                  return null;
+                }
+              })()}
+
               {photoUrlsMap[report.id] && photoUrlsMap[report.id].length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase mb-2">Photos</p>
