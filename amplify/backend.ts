@@ -132,34 +132,25 @@ backend.analyzeReport.resources.lambda.addToRolePolicy(
 );
 
 // 2. Read/Write to our own storage bucket
-// We use a Resource Policy on the bucket to avoid 'data' -> 'storage' dependency.
-// Instead, 'storage' will depend on 'data' (Lambda Role ARN).
-const { PolicyStatement } = await import("aws-cdk-lib/aws-iam");
-backend.storage.resources.bucket.addToResourcePolicy(
-  new PolicyStatement({
-    actions: ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
-    resources: [
-      backend.storage.resources.bucket.bucketArn,
-      backend.storage.resources.bucket.arnForObjects("*"),
-    ],
-    principals: [backend.analyzeReport.resources.lambda.grantPrincipal],
-  })
-);
+backend.storage.resources.bucket.grantReadWrite(backend.analyzeReport.resources.lambda);
 
 // 3. Grant invoke permission to SSR (Compute role)
-// The API route runs in the SSR context, so the compute role needs to invoke the Lambda.
-// We use grantInvoke which adds a resource-based permission to the Lambda (Data), referring to the Principal (Auth).
-// This creates 'data' -> 'auth', which is fine.
+// The API route runs in the SSR context, so the compute role needs to invoke the Lambda
 if (computeRole) {
-  const grantable = (computeRole as any).role || computeRole;
-  backend.analyzeReport.resources.lambda.grantInvoke(grantable);
-  console.log("✅ Granted Lambda invoke permission to Compute role");
+  backend.analyzeReport.resources.lambda.addPermission("ComputeRoleInvoke", {
+    principal: computeRole,
+    action: "lambda:InvokeFunction"
+  });
+  console.log("✅ Added resource-based permission for Compute role");
 }
 
 // 4. Grant invoke permission to authenticated user role
-// Again, 'data' -> 'auth'. Safe.
-backend.analyzeReport.resources.lambda.grantInvoke(authenticatedUserRole);
-console.log("✅ Granted Lambda invoke permission to Authenticated User role");
+// Use resource-based permission to avoid Auth -> Data dependency
+backend.analyzeReport.resources.lambda.addPermission("AuthenticatedUserInvoke", {
+  principal: authenticatedUserRole,
+  action: "lambda:InvokeFunction"
+});
+console.log("✅ Added resource-based permission for Authenticated User role");
 
 // 5. Add resource-based policy to allow group roles to invoke the function
 // 'data' -> 'auth'. Safe.
