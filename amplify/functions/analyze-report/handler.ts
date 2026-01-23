@@ -29,6 +29,8 @@ export const handler = async (event: { reportId: string, bucket?: string, region
                     incidentDate
                     description
                     photoUrls
+                    weatherReport
+                    shingleExposure
                 }
             }
         `;
@@ -69,14 +71,32 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             format: getMediaType(path)
         }));
 
+        // Parse weather report if it exists
+        let weatherReport = null;
+        try {
+            if (report.weatherReport) {
+                weatherReport = typeof report.weatherReport === 'string'
+                    ? JSON.parse(report.weatherReport)
+                    : report.weatherReport;
+            }
+        } catch (e) {
+            console.warn("Failed to parse weather report:", e);
+        }
+
         const payload = {
             images,
             analysis_context: {
                 image_id: report.id,
                 reported_peril: "",
-                weather_summary: `Analysis for incident on ${report.incidentDate}`,
+                weather_summary: weatherReport?.weather_description || `Analysis for incident on ${report.incidentDate}`,
                 notes: report.description
-            }
+            },
+            shingle_size_inches: report.shingleExposure || 5.0, // Default to 5.0 if not provided
+            weather_report: weatherReport ? {
+                reported_hail_size_inches: weatherReport.reported_hail_size_inches || 1.5,
+                weather_date: weatherReport.weather_date || report.incidentDate,
+                weather_description: weatherReport.weather_description || "Severe thunderstorm with hail reported in area"
+            } : undefined
         };
 
         console.log("🔍 Sending payload to AI Lambda...");

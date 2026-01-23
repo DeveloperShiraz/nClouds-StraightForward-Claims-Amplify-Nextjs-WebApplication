@@ -66,6 +66,7 @@ const schema = a.schema({
       shingleExposure: a.float(), // Shingle exposure in inches
       photoUrls: a.string().array(), // Store S3 URLs of uploaded photos
       aiAnalysis: a.json(), // Store the AI analysis result
+      weatherReport: a.json(), // Store weather information (hail size, date, description)
       status: a.enum(["submitted", "in_review", "resolved"]),
       submittedAt: a.datetime(),
       submittedBy: a.string(),

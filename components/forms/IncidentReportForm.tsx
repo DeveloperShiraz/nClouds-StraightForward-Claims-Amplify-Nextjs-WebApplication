@@ -84,6 +84,18 @@ const formSchema = z.object({
   description: z.string()
     .min(10, "Description must be at least 10 characters")
     .max(2000, "Description must be 2000 characters or less"),
+
+  // Weather Information
+  weatherHailSize: z.string()
+    .optional()
+    .refine((val) => {
+      if (!val || val === "") return true;
+      const num = parseFloat(val);
+      return !isNaN(num) && num >= 0 && num <= 10;
+    }, "Hail size must be between 0 and 10 inches"),
+  weatherDate: z.date().optional().refine((date) => !date || date <= new Date(), "Weather date cannot be in the future"),
+  weatherDescription: z.string().optional().max(500, "Weather description must be 500 characters or less"),
+
   shingleExposure: z.string()
     .optional()
     .refine((val) => {
@@ -121,6 +133,7 @@ export function IncidentReportForm({
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [weatherDatePickerOpen, setWeatherDatePickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error';
@@ -168,6 +181,8 @@ export function IncidentReportForm({
       state: "",
       zip: "",
       description: "",
+      weatherHailSize: "",
+      weatherDescription: "",
       shingleExposure: "",
       photos: [],
     },
@@ -279,6 +294,13 @@ export function IncidentReportForm({
         }
       }
 
+      // Construct Weather Report JSON
+      const weatherReport = {
+        reported_hail_size_inches: data.weatherHailSize ? parseFloat(data.weatherHailSize) : undefined,
+        weather_date: data.weatherDate ? format(data.weatherDate, "yyyy-MM-dd") : undefined,
+        weather_description: data.weatherDescription,
+      };
+
       // 2. Create incident report with photo URLs included
       const incidentData = {
         claimNumber: data.claimNumber,
@@ -298,6 +320,7 @@ export function IncidentReportForm({
         companyId: finalCompanyId,
         companyName: finalCompanyName,
         submittedBy: publicMode ? data.email : (userEmail || currentUser?.username),
+        weatherReport: JSON.stringify(weatherReport), // Pass as JSON string
       };
 
       console.log("Calling API to create incident report...");
@@ -736,6 +759,105 @@ export function IncidentReportForm({
               </FormItem>
             )}
           />
+
+          {/* Weather Information Section */}
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium">Weather Information</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Hail Size */}
+              <FormField
+                control={form.control}
+                name="weatherHailSize"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hail Size (Inches)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          max="10"
+                          placeholder="e.g. 1.5"
+                          {...field}
+                          className="pr-16"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                          inches
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Weather Date */}
+              <FormField
+                control={form.control}
+                name="weatherDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Weather Date</FormLabel>
+                    <Popover open={weatherDatePickerOpen} onOpenChange={setWeatherDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setWeatherDatePickerOpen(false);
+                          }}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Weather Description */}
+            <FormField
+              control={form.control}
+              name="weatherDescription"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Weather Description</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g. Severe thunderstorm with hail reported"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           {/* Shingle Exposure */}
           <FormField
