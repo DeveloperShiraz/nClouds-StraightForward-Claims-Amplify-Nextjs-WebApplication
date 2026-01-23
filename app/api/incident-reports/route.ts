@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
           companyId,
           companyName,
           submittedBy,
+          weatherReport,
         } = body;
 
         // Validate required fields
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest) {
           companyName: companyName || undefined,
           submittedBy: submittedBy || undefined,
           aiAnalysis: JSON.stringify({ status: 'pending' }),
+          weatherReport: weatherReport || undefined,
         });
 
         if (errors) {
