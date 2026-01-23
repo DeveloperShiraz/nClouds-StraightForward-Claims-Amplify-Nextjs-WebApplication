@@ -134,7 +134,7 @@ backend.analyzeReport.resources.lambda.addToRolePolicy(
 // 2. Read/Write to our own storage bucket
 // We use a Resource Policy on the bucket to avoid 'data' -> 'storage' dependency.
 // Instead, 'storage' will depend on 'data' (Lambda Role ARN).
-const { PolicyStatement, ArnPrincipal } = await import("aws-cdk-lib/aws-iam");
+const { PolicyStatement } = await import("aws-cdk-lib/aws-iam");
 backend.storage.resources.bucket.addToResourcePolicy(
   new PolicyStatement({
     actions: ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
@@ -142,7 +142,7 @@ backend.storage.resources.bucket.addToResourcePolicy(
       backend.storage.resources.bucket.bucketArn,
       backend.storage.resources.bucket.arnForObjects("*"),
     ],
-    principals: [new ArnPrincipal(backend.analyzeReport.resources.lambda.grantPrincipal.principalArn)],
+    principals: [backend.analyzeReport.resources.lambda.grantPrincipal],
   })
 );
 
