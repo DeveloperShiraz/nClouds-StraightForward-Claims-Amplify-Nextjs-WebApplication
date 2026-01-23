@@ -55,7 +55,18 @@ const computeRole = allNodes.find((n: any) => {
 if (computeRole) {
   // If the found construct has a 'role' property, use that; otherwise use the construct itself
   const grantable = (computeRole as any).role || computeRole;
-  backend.storage.resources.bucket.grantWrite(grantable);
+  // Grant the server-side (Compute) role permission to upload to OUR storage bucket via Resource Policy
+  const { PolicyStatement, ArnPrincipal } = await import("aws-cdk-lib/aws-iam");
+  backend.storage.resources.bucket.addToResourcePolicy(
+    new PolicyStatement({
+      actions: ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+      resources: [
+        backend.storage.resources.bucket.bucketArn,
+        backend.storage.resources.bucket.arnForObjects("*"),
+      ],
+      principals: [new ArnPrincipal(grantable.roleArn)],
+    })
+  );
 
   // Grant permission to read from the AI output bucket
   grantable.addToPrincipalPolicy(
@@ -74,9 +85,7 @@ if (computeRole) {
   });
 }
 
-// Grant the Authenticated User Role permission to read from the AI output bucket
-// This is necessary because the backend API may run with the authenticated user's credentials
-// Grant the Authenticated User Role permission to read from the AI output bucket
+// Grant the Authenticated User Role permission to read from the external AI output bucket
 // This is necessary because the backend API may run with the authenticated user's credentials
 const authenticatedUserRole = backend.auth.resources.authenticatedUserIamRole;
 authenticatedUserRole.addToPrincipalPolicy(
