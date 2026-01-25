@@ -57,7 +57,7 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             return { success: true, message: "No photos to analyze" };
         }
 
-        // 2. Prepare payload for AI Lambda
+        // 2. Process images sequentially
         const getMediaType = (path: string) => {
             const ext = path.split('.').pop()?.toLowerCase();
             if (ext === 'png') return 'image/png';
@@ -65,11 +65,6 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             if (ext === 'gif') return 'image/gif';
             return 'image/jpeg';
         };
-
-        const images = report.photoUrls.map((path: string) => ({
-            s3_uri: `s3://${bucket}/${path}`,
-            format: getMediaType(path)
-        }));
 
         // Parse weather report if it exists
         let weatherReport = null;
@@ -83,42 +78,99 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             console.warn("Failed to parse weather report:", e);
         }
 
-        const payload = {
-            images,
-            analysis_context: {
-                image_id: report.id,
-                reported_peril: "",
-                weather_summary: weatherReport?.weather_description || `Analysis for incident on ${report.incidentDate}`,
-                notes: report.description
-            },
-            shingle_size_inches: report.shingleExposure || 5.0, // Default to 5.0 if not provided
-            weather_report: weatherReport ? {
-                reported_hail_size_inches: weatherReport.reported_hail_size_inches || 1.5,
-                weather_date: weatherReport.weather_date || report.incidentDate,
-                weather_description: weatherReport.weather_description || "Severe thunderstorm with hail reported in area"
-            } : undefined
+        const aggregatedData = {
+            detections: [] as any[],
+            evidence_bullets: [] as string[],
+            fraud_signals: [] as string[],
+            final_assessment: "",
+            peril_match: { match: "unknown", reason: "" },
+            all_local_paths: [] as string[]
         };
 
-        console.log("🔍 Sending payload to AI Lambda...");
-        const aiResponse = await fetch(AI_LAMBDA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        const uniqueAssessments = new Set<string>();
 
-        if (!aiResponse.ok) {
-            const errorText = await aiResponse.text();
-            throw new Error(`AI Lambda failed: ${errorText}`);
+        console.log(`Processing ${report.photoUrls.length} images...`);
+
+        for (const [index, path] of report.photoUrls.entries()) {
+            console.log(`Analyzing image ${index + 1}/${report.photoUrls.length}: ${path}`);
+
+            const imagePayload = {
+                s3_uri: `s3://${bucket}/${path}`,
+                format: getMediaType(path)
+            };
+
+            const payload = {
+                images: [imagePayload], // Send one image at a time
+                analysis_context: {
+                    image_id: `${report.id}_${index}`, // Unique ID for this specific call
+                    reported_peril: "",
+                    weather_summary: weatherReport?.weather_description || `Analysis for incident on ${report.incidentDate}`,
+                    notes: report.description
+                },
+                shingle_size_inches: report.shingleExposure || 5.0,
+                weather_report: weatherReport ? {
+                    reported_hail_size_inches: weatherReport.reported_hail_size_inches || 1.5,
+                    weather_date: weatherReport.weather_date || report.incidentDate,
+                    weather_description: weatherReport.weather_description || "Severe thunderstorm with hail reported in area"
+                } : undefined
+            };
+
+            try {
+                const aiResponse = await fetch(AI_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!aiResponse.ok) {
+                    const errorText = await aiResponse.text();
+                    console.error(`AI Lambda failed for image ${path}: ${errorText}`);
+                    continue; // Skip failed image but continue others
+                }
+
+                const aiResult = await aiResponse.json();
+                const resultData = aiResult.result || aiResult;
+
+                if (resultData.error) {
+                    console.error(`AI Analysis internal error for image ${path}: ${resultData.error}`);
+                    continue;
+                }
+
+                // Aggregate Results
+                if (resultData.detections) {
+                    aggregatedData.detections.push(...resultData.detections);
+                }
+                if (resultData.evidence_bullets) {
+                    aggregatedData.evidence_bullets.push(...resultData.evidence_bullets);
+                }
+                if (resultData.fraud_signals) {
+                    aggregatedData.fraud_signals.push(...resultData.fraud_signals);
+                }
+                if (resultData.final_assessment) {
+                    uniqueAssessments.add(resultData.final_assessment);
+                }
+                // Keep the last/best peril match (simplification)
+                if (resultData.peril_match && resultData.peril_match.match !== 'unknown') {
+                    aggregatedData.peril_match = resultData.peril_match;
+                }
+
+            } catch (err) {
+                console.error(`Exception processing image ${path}:`, err);
+            }
         }
 
-        const aiResult = await aiResponse.json();
-        const resultData = aiResult.result || aiResult;
-
-        if (resultData.error) {
-            throw new Error(`AI Analysis internal error: ${resultData.error}`);
+        // Finalize aggregated data
+        if (uniqueAssessments.size > 0) {
+            aggregatedData.final_assessment = Array.from(uniqueAssessments).join("; ");
+        } else {
+            aggregatedData.final_assessment = "Assessment Incomplete";
         }
 
-        let analysisData = resultData;
+        // Remove duplicates from bullets/signals
+        aggregatedData.evidence_bullets = Array.from(new Set(aggregatedData.evidence_bullets));
+        aggregatedData.fraud_signals = Array.from(new Set(aggregatedData.fraud_signals));
+
+        let analysisData = aggregatedData;
 
         // 3. Copy Analyzed Images
         if (analysisData.detections && analysisData.detections.length > 0) {
