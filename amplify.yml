@@ -17,8 +17,10 @@ applications:
             - rm -rf .next/diagnostics
             - rm -rf .next/turbopack
             - rm -rf .next/trace*
+            - rm -rf .next/standalone
             # Show size of build output for debugging
             - du -sh .next
+            - du -sh .next/* 2>/dev/null || true
       artifacts:
         baseDirectory: .next
         files:
