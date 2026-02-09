@@ -8,7 +8,7 @@ import type { NextPage } from "next";
 
 const Dashboard: NextPage = () => {
   const router = useRouter();
-  const { isAdmin, isIncidentReporter, isCustomer, isLoading, userEmail } = useUserRole();
+  const { isAdmin, isIncidentReporter, isHomeOwner, isLoading, userEmail } = useUserRole();
 
   const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
@@ -18,11 +18,11 @@ const Dashboard: NextPage = () => {
     if (!isLoading) {
       if (isIncidentReporter) {
         router.push("/Dashboard/incident-form");
-      } else if (isCustomer) {
+      } else if (isHomeOwner) {
         router.push("/Dashboard/reports");
       }
     }
-  }, [isLoading, isIncidentReporter, isCustomer, router]);
+  }, [isLoading, isIncidentReporter, isHomeOwner, router]);
 
   useEffect(() => {
     if (isAdmin && !isLoading) {

@@ -89,7 +89,7 @@ async function setupAfterCleanInstall() {
   }
 
   // Step 3: Create other groups
-  const otherGroups = ["Admin", "IncidentReporter", "Customer"];
+  const otherGroups = ["Admin", "IncidentReporter", "HomeOwner"];
   for (const groupName of otherGroups) {
     try {
       console.log(`📋 Creating ${groupName} group...`);

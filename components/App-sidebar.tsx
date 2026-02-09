@@ -311,7 +311,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ];
     }
 
-    // Customer: Reports only (read-only)
+    // Home Owner: Reports only (read-only)
     return [
       {
         label: "Reports",

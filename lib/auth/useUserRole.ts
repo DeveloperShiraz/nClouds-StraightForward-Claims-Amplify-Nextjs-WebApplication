@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 
-export type UserRole = "SuperAdmin" | "Admin" | "IncidentReporter" | "Customer" | null;
+export type UserRole = "SuperAdmin" | "Admin" | "IncidentReporter" | "HomeOwner" | null;
 
 interface UseUserRoleReturn {
   role: UserRole;
@@ -11,7 +11,7 @@ interface UseUserRoleReturn {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isIncidentReporter: boolean;
-  isCustomer: boolean;
+  isHomeOwner: boolean;
   userEmail: string | null;
   companyId: string | null;
   companyName: string | null;
@@ -38,21 +38,21 @@ export function useUserRole(): UseUserRoleReturn {
         const groups = session.tokens?.accessToken?.payload["cognito:groups"] as string[] | undefined;
 
         if (groups && groups.length > 0) {
-          // Priority: SuperAdmin > Admin > IncidentReporter > Customer
+          // Priority: SuperAdmin > Admin > IncidentReporter > HomeOwner
           if (groups.includes("SuperAdmin")) {
             setRole("SuperAdmin");
           } else if (groups.includes("Admin")) {
             setRole("Admin");
           } else if (groups.includes("IncidentReporter")) {
             setRole("IncidentReporter");
-          } else if (groups.includes("Customer")) {
-            setRole("Customer");
+          } else if (groups.includes("HomeOwner")) {
+            setRole("HomeOwner");
           } else {
             setRole(null);
           }
         } else {
-          // Default to Customer if no group assigned
-          setRole("Customer");
+          // Default to HomeOwner if no group assigned
+          setRole("HomeOwner");
         }
       } catch (error) {
         console.error("Error fetching user role:", error);
@@ -71,7 +71,7 @@ export function useUserRole(): UseUserRoleReturn {
     isSuperAdmin: role === "SuperAdmin",
     isAdmin: role === "Admin" || role === "SuperAdmin",
     isIncidentReporter: role === "IncidentReporter",
-    isCustomer: role === "Customer",
+    isHomeOwner: role === "HomeOwner",
     userEmail,
     companyId,
     companyName,

@@ -37,7 +37,7 @@ const schema = a.schema({
       // SuperAdmins can do everything with companies
       allow.group("SuperAdmin"),
       // Company Admins can only read their own company
-      allow.groups(["Admin", "IncidentReporter", "Customer"]).to(["read"]),
+      allow.groups(["Admin", "IncidentReporter", "HomeOwner"]).to(["read"]),
       // Temporary: allow any authenticated user to read (for debugging)
       allow.authenticated().to(["read"]),
       // Allow public access for the public form (unauthenticated users)
@@ -81,8 +81,8 @@ const schema = a.schema({
       // IncidentReporters can create and manage their own reports
       allow.group("IncidentReporter").to(["create", "read", "update"]),
       allow.owner().to(["read", "update", "delete"]),
-      // Customers can only read reports
-      allow.group("Customer").to(["read"]),
+      // HomeOwners can only read reports
+      allow.group("HomeOwner").to(["read"]),
       // Allow public submission (unauthenticated users)
       allow.guest().to(["create"]),
       // Allow API Key access for universal public submission and background AI analysis

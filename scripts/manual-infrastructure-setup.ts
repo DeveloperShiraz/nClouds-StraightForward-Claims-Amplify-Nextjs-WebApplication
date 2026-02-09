@@ -80,7 +80,7 @@ async function setupInfrastructure() {
     { name: "SuperAdmin", precedence: 0, description: "Global administrators" },
     { name: "Admin", precedence: 1, description: "Company administrators" },
     { name: "IncidentReporter", precedence: 2, description: "Can report incidents" },
-    { name: "Customer", precedence: 3, description: "Read-only access" },
+    { name: "HomeOwner", precedence: 3, description: "Read-only access" },
   ];
 
   for (const group of groups) {
@@ -204,7 +204,7 @@ async function setupInfrastructure() {
         { SuperAdmin: { precedence: 0 } },
         { Admin: { precedence: 1 } },
         { IncidentReporter: { precedence: 2 } },
-        { Customer: { precedence: 3 } },
+        { HomeOwner: { precedence: 3 } },
       ],
     },
     data: {
@@ -239,7 +239,7 @@ async function setupInfrastructure() {
   console.log(`✅ amplify_outputs.json created\n`);
 
   // Summary
-  console.log("=" .repeat(60));
+  console.log("=".repeat(60));
   console.log("🎉 Infrastructure setup complete!\n");
   console.log("📋 Summary:");
   console.log(`   User Pool ID: ${userPoolId}`);
@@ -253,7 +253,7 @@ async function setupInfrastructure() {
   console.log(`   1. Update your API routes to use table name "Company-manual"`);
   console.log(`   2. Run: npm run dev`);
   console.log(`   3. Login and test the Companies page\n`);
-  console.log("=" .repeat(60));
+  console.log("=".repeat(60));
 }
 
 setupInfrastructure().catch((error) => {

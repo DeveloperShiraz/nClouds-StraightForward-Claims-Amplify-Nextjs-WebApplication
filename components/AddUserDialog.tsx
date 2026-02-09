@@ -38,7 +38,7 @@ export function AddUserDialog({
   const { isSuperAdmin, companyId: userCompanyId, companyName: userCompanyName } = useUserRole();
   const { companies } = useCompany();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<string>("Customer");
+  const [role, setRole] = useState<string>("HomeOwner");
   const [companyId, setCompanyId] = useState<string>("none");
   const [sendInvite, setSendInvite] = useState(true);
   const [passwordOption, setPasswordOption] = useState<"auto" | "manual">("auto");
@@ -57,7 +57,7 @@ export function AddUserDialog({
   // Reset form when dialog opens/closes
   const resetForm = () => {
     setEmail("");
-    setRole("Customer");
+    setRole("HomeOwner");
     setCompanyId("none"); // Default to "none" for SuperAdmin compatibility
     setSendInvite(true);
     setPasswordOption("auto");
@@ -251,9 +251,9 @@ export function AddUserDialog({
                       </span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="Customer">
+                  <SelectItem value="HomeOwner">
                     <div className="flex flex-col">
-                      <span className="font-medium">Customer</span>
+                      <span className="font-medium">Home Owner</span>
                       <span className="text-xs text-gray-500">
                         Read-only access to reports
                       </span>

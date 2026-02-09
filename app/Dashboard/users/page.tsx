@@ -32,7 +32,7 @@ interface User {
   companyName?: string | null;
 }
 
-type RoleFilter = "all" | "Admin" | "IncidentReporter" | "Customer";
+type RoleFilter = "all" | "Admin" | "IncidentReporter" | "HomeOwner";
 
 export default function UsersPage() {
   const router = useRouter();
@@ -171,21 +171,21 @@ export default function UsersPage() {
   const visibleUsers = isSuperAdmin
     ? users
     : users.filter((u) => {
-        // Exclude SuperAdmins
-        if (u.groups.includes("SuperAdmin")) return false;
-        // Only include users from the same company
-        if (userCompanyId) {
-          return u.companyId === userCompanyId || !u.companyId;
-        }
-        return true;
-      });
+      // Exclude SuperAdmins
+      if (u.groups.includes("SuperAdmin")) return false;
+      // Only include users from the same company
+      if (userCompanyId) {
+        return u.companyId === userCompanyId || !u.companyId;
+      }
+      return true;
+    });
 
   const adminCount = visibleUsers.filter((u) => u.groups.includes("Admin")).length;
   const incidentReporterCount = visibleUsers.filter((u) =>
     u.groups.includes("IncidentReporter")
   ).length;
   const customerCount = visibleUsers.filter((u) =>
-    u.groups.includes("Customer")
+    u.groups.includes("HomeOwner")
   ).length;
 
   if (roleLoading) {
@@ -236,11 +236,10 @@ export default function UsersPage() {
         {/* Role Stats Cards - Now clickable for filtering */}
         <button
           onClick={() => setRoleFilter(roleFilter === "Admin" ? "all" : "Admin")}
-          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${
-            roleFilter === "Admin"
+          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "Admin"
               ? "border-red-600 ring-2 ring-red-600"
               : "border-gray-200 hover:border-red-300"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-3 mb-2">
             <Shield className="w-5 h-5 text-red-600" />
@@ -258,11 +257,10 @@ export default function UsersPage() {
               roleFilter === "IncidentReporter" ? "all" : "IncidentReporter"
             )
           }
-          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${
-            roleFilter === "IncidentReporter"
+          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "IncidentReporter"
               ? "border-blue-600 ring-2 ring-blue-600"
               : "border-gray-200 hover:border-blue-300"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-3 mb-2">
             <FileText className="w-5 h-5 text-blue-600" />
@@ -280,20 +278,19 @@ export default function UsersPage() {
 
         <button
           onClick={() =>
-            setRoleFilter(roleFilter === "Customer" ? "all" : "Customer")
+            setRoleFilter(roleFilter === "HomeOwner" ? "all" : "HomeOwner")
           }
-          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${
-            roleFilter === "Customer"
+          className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "HomeOwner"
               ? "border-green-600 ring-2 ring-green-600"
               : "border-gray-200 hover:border-green-300"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-3 mb-2">
             <UsersIcon className="w-5 h-5 text-green-600" />
-            <h3 className="text-sm font-medium text-gray-500">Customers</h3>
+            <h3 className="text-sm font-medium text-gray-500">Home Owners</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900">{customerCount}</p>
-          {roleFilter === "Customer" && (
+          {roleFilter === "HomeOwner" && (
             <p className="text-xs text-green-600 mt-2">Filtering by this role</p>
           )}
         </button>
@@ -445,8 +442,8 @@ export default function UsersPage() {
                                     group === "Admin"
                                       ? "destructive"
                                       : group === "IncidentReporter"
-                                      ? "default"
-                                      : "secondary"
+                                        ? "default"
+                                        : "secondary"
                                   }
                                   className="cursor-pointer hover:opacity-80"
                                 >
@@ -465,7 +462,7 @@ export default function UsersPage() {
                                 variant="secondary"
                                 className="cursor-pointer hover:opacity-80"
                               >
-                                Customer (Default)
+                                Home Owner (Default)
                               </Badge>
                             </button>
                           )}
@@ -477,8 +474,8 @@ export default function UsersPage() {
                             user.status === "CONFIRMED"
                               ? "default"
                               : user.status === "FORCE_CHANGE_PASSWORD"
-                              ? "secondary"
-                              : "outline"
+                                ? "secondary"
+                                : "outline"
                           }
                         >
                           {user.status === "FORCE_CHANGE_PASSWORD"

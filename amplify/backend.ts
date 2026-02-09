@@ -98,7 +98,7 @@ authenticatedUserRole.addToPrincipalPolicy(
 
 // Grant permissions to specific Group Roles
 // Users in groups assume specific roles, so we need to grant access to those as well
-const groups = ["SuperAdmin", "Admin", "IncidentReporter", "Customer"];
+const groups = ["SuperAdmin", "Admin", "IncidentReporter", "HomeOwner"];
 for (const groupName of groups) {
   const roleId = `${groupName}GroupRole`;
   const roleNode = allNodes.find((n: any) => n.node?.id === roleId);

@@ -10,7 +10,7 @@ export const auth = defineAuth({
     email: true,
     // add social providers
   },
-  groups: ["SuperAdmin", "Admin", "IncidentReporter", "Customer"],
+  groups: ["SuperAdmin", "Admin", "IncidentReporter", "HomeOwner"],
   /**
    * enable multifactor authentication
    * @see https://docs.amplify.aws/gen2/build-a-backend/auth/manage-mfa

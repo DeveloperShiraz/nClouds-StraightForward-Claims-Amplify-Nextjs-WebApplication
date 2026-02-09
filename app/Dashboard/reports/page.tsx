@@ -57,7 +57,7 @@ export default function ReportsPage() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [photoUrlsMap, setPhotoUrlsMap] = useState<Record<string, string[]>>({});
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>("all");
-  const { isAdmin, isIncidentReporter, isSuperAdmin, isCustomer, isLoading: roleLoading, companyId, userEmail } = useUserRole();
+  const { isAdmin, isIncidentReporter, isSuperAdmin, isHomeOwner, isLoading: roleLoading, companyId, userEmail } = useUserRole();
   const { companies } = useCompany();
 
   const getSignedPhotoUrls = async (photoPaths: string[]): Promise<string[]> => {
@@ -108,12 +108,12 @@ export default function ReportsPage() {
       // - SuperAdmins: Can view all reports across all companies
       // - Admins: Can view reports within their assigned company only
       // - IncidentReporters: Can view reports within their assigned company OR reports they submitted
-      // - Customers: Can ONLY view reports where the email matches their account email
+      // - HomeOwners: Can ONLY view reports where the email matches their account email
 
       if (!isSuperAdmin) {
         allReports = allReports.filter((report: IncidentReport) => {
-          // 1. Customer Rule: Strict email match
-          if (isCustomer) {
+          // 1. HomeOwner Rule: Strict email match
+          if (isHomeOwner) {
             return userEmail && report.email === userEmail;
           }
 
@@ -654,7 +654,7 @@ export default function ReportsPage() {
           <div class="report-section" style="margin-top: 0;">
             <div class="info-grid">
               <div class="info-group">
-                <div class="info-label">Customer Information</div>
+                <div class="info-label">Home Owner Information</div>
                 <div class="info-value" style="font-weight: 700; font-size: 13px;">${report.firstName} ${report.lastName}</div>
                 <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">EMAIL:</span> ${report.email}</div>
                 <div class="info-value"><span style="color: #666; font-size: 9px; font-weight: 700;">PHONE:</span> ${report.phone}</div>
@@ -879,8 +879,8 @@ export default function ReportsPage() {
     }
   };
 
-  // Authorization check: Only Admins, SuperAdmins, IncidentReporters AND Customers can view reports
-  if (!roleLoading && !isAdmin && !isIncidentReporter && !isCustomer) {
+  // Authorization check: Only Admins, SuperAdmins, IncidentReporters AND HomeOwners can view reports
+  if (!roleLoading && !isAdmin && !isIncidentReporter && !isHomeOwner) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -1178,8 +1178,8 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* AI Analysis Section - Hidden for Customers */}
-              {!isCustomer && report.aiAnalysis && (
+              {/* AI Analysis Section - Hidden for HomeOwners */}
+              {!isHomeOwner && report.aiAnalysis && (
                 <AIAnalysisDisplay analysis={report.aiAnalysis} />
               )}
             </div>

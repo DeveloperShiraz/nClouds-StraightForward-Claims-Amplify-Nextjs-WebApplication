@@ -37,7 +37,7 @@ export function EditUserRoleDialog({
   currentRole,
   onRoleUpdated,
 }: EditUserRoleDialogProps) {
-  const [newRole, setNewRole] = useState<string>(currentRole || "Customer");
+  const [newRole, setNewRole] = useState<string>(currentRole || "HomeOwner");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,10 +98,12 @@ export function EditUserRoleDialog({
               <Label>Current Role</Label>
               <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md text-sm">
                 {currentRole === ""
-                  ? "No Role Assigned (Default: Customer)"
+                  ? "No Role Assigned (Default: Home Owner)"
                   : currentRole === "IncidentReporter"
                     ? "Incident Reporter"
-                    : currentRole}
+                    : currentRole === "HomeOwner"
+                      ? "Home Owner"
+                      : currentRole}
               </div>
             </div>
 
@@ -129,9 +131,9 @@ export function EditUserRoleDialog({
                       </span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="Customer">
+                  <SelectItem value="HomeOwner">
                     <div className="flex flex-col">
-                      <span className="font-medium">Customer</span>
+                      <span className="font-medium">Home Owner</span>
                       <span className="text-xs text-gray-500">
                         Read-only access to reports
                       </span>
