@@ -11,12 +11,8 @@ applications:
         build:
           commands:
             - pnpm run build
-            # Copy files required for Amplify SSR with standalone mode
-            - cp -r .next/static .next/standalone/.next/static
-            - cp .next/required-server-files.json .next/standalone/.next/required-server-files.json
-            - cp -r public .next/standalone/public 2>/dev/null || true
       artifacts:
-        baseDirectory: .next/standalone
+        baseDirectory: .next
         files:
           - "**/*"
       cache:

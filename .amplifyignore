@@ -1,0 +1,54 @@
+# Amplify Ignore File
+# Excludes unnecessary files from the deployment to reduce build output size
+
+# Development and build cache directories
+node_modules
+.pnpm-store
+.turbo
+
+# Large cache directories in .next that aren't needed for deployment
+.next/cache
+
+# Source maps (large and not needed in production)
+.next/**/*.map
+*.map
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__
+coverage
+
+# Development configuration
+.env.local
+.env.development
+.env.development.local
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation and non-essential files
+*.md
+!README.md
+LICENSE
+CHANGELOG.md
+
+# Git
+.git
+.gitignore
+
+# Amplify backend (handled separately)
+amplify
+
+# Scripts directory
+scripts
+
+# TypeScript source files (only .next is needed)
+**/*.ts
+**/*.tsx
+!.next/**/*
