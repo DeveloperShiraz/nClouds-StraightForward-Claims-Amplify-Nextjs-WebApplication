@@ -66,7 +66,7 @@ async function migrateUsers() {
         // Pagination support could be added, but assuming manageable list for now
         // Actually, ListUsersInGroup paginates. For simplicity, let's grab the first batch (up to 60) and loop if needed.
         let nextToken: string | undefined;
-        const users toMigrate: any[] = [];
+        const users: any[] = [];
 
         do {
             const command = new ListUsersInGroupCommand({
