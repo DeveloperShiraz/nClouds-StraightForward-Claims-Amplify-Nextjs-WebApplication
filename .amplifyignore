@@ -8,6 +8,10 @@ node_modules
 
 # Large cache directories in .next that aren't needed for deployment
 .next/cache
+.next/dev
+.next/diagnostics
+.next/trace*
+.next/turbopack
 
 # Source maps (large and not needed in production)
 .next/**/*.map

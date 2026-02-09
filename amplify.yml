@@ -11,8 +11,12 @@ applications:
         build:
           commands:
             - pnpm run build
-            # Delete cache to reduce artifact size (it gets regenerated each build anyway)
+            # Delete development-only directories and cache to reduce artifact size
             - rm -rf .next/cache
+            - rm -rf .next/dev
+            - rm -rf .next/diagnostics
+            - rm -rf .next/turbopack
+            - rm -rf .next/trace*
             # Show size of build output for debugging
             - du -sh .next
       artifacts:
