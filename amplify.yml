@@ -11,34 +11,24 @@ applications:
         build:
           commands:
             - pnpm run build
-            # Delete development-only directories and cache to reduce artifact size
-            - rm -rf .next/cache
-            - rm -rf .next/dev
-            - rm -rf .next/diagnostics
-            - rm -rf .next/turbopack
-            - rm -rf .next/trace*
-            - rm -rf .next/standalone
+            # Delete development-only directories from .next
+            - rm -rf .next/cache .next/dev .next/diagnostics .next/turbopack .next/standalone
+            - rm -f .next/trace .next/trace-build
             # Delete build-only packages from node_modules (not needed for SSR runtime)
-            # These are only needed during CDK deploy (backend) or compilation
-            - rm -rf node_modules/aws-cdk-lib
-            - rm -rf node_modules/aws-cdk
-            - rm -rf node_modules/@aws-cdk
-            - rm -rf node_modules/constructs
-            - rm -rf node_modules/typescript
-            - rm -rf node_modules/esbuild
-            - rm -rf node_modules/@esbuild
-            - rm -rf node_modules/@swc
-            - rm -rf node_modules/.pnpm/aws-cdk-lib*
-            - rm -rf node_modules/.pnpm/aws-cdk@*
-            - rm -rf node_modules/.pnpm/@aws-cdk*
-            - rm -rf node_modules/.pnpm/constructs*
-            - rm -rf node_modules/.pnpm/typescript@*
-            - rm -rf node_modules/.pnpm/esbuild@*
-            - rm -rf node_modules/.pnpm/@esbuild*
-            - rm -rf node_modules/.pnpm/@swc*
+            # Use find to properly clean pnpm's content-addressable store
+            - find node_modules -maxdepth 1 -name "aws-cdk-lib" -o -name "aws-cdk" -o -name "@aws-cdk" -o -name "constructs" -o -name "typescript" -o -name "esbuild" -o -name "@esbuild" -o -name "@swc" -o -name "@parcel" -o -name "tsx" | xargs rm -rf
+            - find node_modules/.pnpm -maxdepth 1 -type d \( -name "aws-cdk-lib@*" -o -name "aws-cdk@*" -o -name "@aws-cdk+*" -o -name "constructs@*" -o -name "typescript@*" -o -name "esbuild@*" -o -name "@esbuild+*" -o -name "@swc+*" -o -name "@parcel+*" -o -name "tsx@*" -o -name "core-js@*" -o -name "sharp@*" \) -exec rm -rf {} + 2>/dev/null || true
+            # Remove unnecessary files from remaining node_modules
+            - find node_modules -name "*.md" -not -name "LICENSE*" -delete 2>/dev/null || true
+            - find node_modules -name "CHANGELOG*" -delete 2>/dev/null || true
+            - find node_modules -name "*.map" -delete 2>/dev/null || true
+            - find node_modules -name "*.d.ts" -delete 2>/dev/null || true
+            - find node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true
+            - find node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+            - find node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+            - find node_modules -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
             # Show size of build output for debugging
             - du -sh .next
-            - du -sh .next/* 2>/dev/null || true
             - du -sh node_modules 2>/dev/null || true
       artifacts:
         baseDirectory: .next
