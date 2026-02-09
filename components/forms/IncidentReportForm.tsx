@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { format } from "date-fns";
+
 import { CalendarIcon, Upload, X, CheckCircle, AlertCircle } from "lucide-react";
 import { uploadData } from "aws-amplify/storage";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
@@ -297,7 +297,7 @@ export function IncidentReportForm({
       // Construct Weather Report JSON
       const weatherReport = {
         reported_hail_size_inches: data.weatherHailSize ? parseFloat(data.weatherHailSize) : undefined,
-        weather_date: data.weatherDate ? format(data.weatherDate, "yyyy-MM-dd") : undefined,
+        weather_date: data.weatherDate ? data.weatherDate.toISOString().split('T')[0] : undefined,
         weather_description: data.weatherDescription,
       };
 
@@ -713,7 +713,7 @@ export function IncidentReportForm({
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "PPP")
+                          field.value.toLocaleDateString("en-US", { dateStyle: "long" })
                         ) : (
                           <span>Pick a date</span>
                         )}
@@ -811,7 +811,7 @@ export function IncidentReportForm({
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP")
+                              field.value.toLocaleDateString("en-US", { dateStyle: "long" })
                             ) : (
                               <span>Pick a date</span>
                             )}
