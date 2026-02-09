@@ -399,7 +399,8 @@ export default function ReportsPage() {
           line-height: 1.4;
           background: #fff;
           margin: 0;
-          padding: 15mm;
+          margin: 0;
+          padding: 8mm;
           font-size: 11px;
         }
 
@@ -463,11 +464,9 @@ export default function ReportsPage() {
           padding: 12px 15px;
           border-radius: 4px;
           margin-bottom: 15px;
-          page-break-inside: avoid;
         }
         .findings-container {
           margin-bottom: 15px;
-          page-break-inside: avoid;
         }
         .findings-col {
           margin-bottom: 15px;
@@ -589,7 +588,7 @@ export default function ReportsPage() {
 
         @media print {
           body { -webkit-print-color-adjust: exact; }
-          .assessment-summary { page-break-inside: avoid; }
+          /* .assessment-summary { page-break-inside: avoid; } */
           .evidence-item { page-break-inside: avoid; }
           .info-group { page-break-inside: avoid; }
           .report-header { page-break-after: avoid; }
@@ -646,7 +645,10 @@ export default function ReportsPage() {
         </head>
         <body>
           <div class="report-header">
-            <h1 class="report-title">Incident Investigation Report</h1>
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <img src="/ClaimVerifAI.png" alt="ClaimVerifAI" style="height: 50px; width: auto; object-fit: contain;" />
+              <h1 class="report-title" style="margin: 6px 0 0 0; line-height: 1;">Incident Investigation Report</h1>
+            </div>
           </div>
 
           <div class="report-section" style="margin-top: 0;">

@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { BarChart3, Camera, ChevronRight, Code } from "lucide-react";
-import LogoLight from "@/public/predictif_logo_black.png";
-import LogoDark from "@/public/predictif_logo.png";
+import Logo from "@/public/ClaimVerifAI.png";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -47,8 +46,8 @@ export default function Home() {
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Image
-            src={resolvedTheme === "dark" ? LogoDark : LogoLight}
-            alt="PREDICTif Logo"
+            src={Logo}
+            alt="ClaimVerifAI Logo"
             width={220}
             height={70}
             className="object-contain text-center pl-1"

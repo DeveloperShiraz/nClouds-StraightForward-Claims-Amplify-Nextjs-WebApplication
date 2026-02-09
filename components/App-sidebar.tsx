@@ -4,8 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import LogoLight from "@/public/predictif_logo_black.png";
-import LogoDark from "@/public/predictif_logo.png";
+import Logo from "@/public/ClaimVerifAI.png";
 import {
   LayoutDashboard,
   LinkIcon,
@@ -359,8 +358,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 className="flex items-center gap-2 font-semibold pl-6"
               >
                 <Image
-                  src={resolvedTheme === "dark" ? LogoDark : LogoLight}
-                  alt="PREDICTif Logo"
+                  src={Logo}
+                  alt="ClaimVerifAI Logo"
                   width={180}
                   height={70}
                   className="object-contain text-center pl-1"
@@ -373,7 +372,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/" className="flex items-center justify-center">
                 <div className="w-8 h-8 flex items-center justify-center">
                   <span className="text-[#000000] dark:text-white font-black text-3xl">
-                    Pif
+                    CV
                   </span>
                 </div>
               </Link>
