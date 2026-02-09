@@ -36,7 +36,7 @@ import {
   XCircle,
   Link as LinkIcon,
   Copy,
-} from "lucide-react";
+} from "@/components/Icons";
 import { useRouter } from "next/navigation";
 
 interface Company {

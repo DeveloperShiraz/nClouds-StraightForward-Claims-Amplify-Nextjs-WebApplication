@@ -7,7 +7,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "@/amplify/data/resource";
 import Heading from "@/components/ui/Heading";
 import { Button } from "@/components/ui/Button";
-import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap, FileText } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Edit, Trash2, Download, Zap, FileText } from "@/components/Icons";
 import { EditIncidentReportModal } from "@/components/forms/EditIncidentReportModal";
 import { AIAnalysisDisplay } from "@/components/AIAnalysisDisplay";
 import { useUserRole } from "@/lib/auth/useUserRole";

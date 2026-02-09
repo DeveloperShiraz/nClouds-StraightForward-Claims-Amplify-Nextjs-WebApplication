@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Loader2 } from "@/components/Icons";
 import { IncidentReportForm } from "@/components/forms/IncidentReportForm";
 import { Button } from "@/components/ui/Button";
 

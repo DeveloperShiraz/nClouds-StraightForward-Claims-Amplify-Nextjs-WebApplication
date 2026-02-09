@@ -9,7 +9,7 @@ import {
   LogOut,
   ServerCog,
   ChevronsUpDown,
-} from "lucide-react";
+} from "@/components/Icons";
 
 import {
   DropdownMenu,

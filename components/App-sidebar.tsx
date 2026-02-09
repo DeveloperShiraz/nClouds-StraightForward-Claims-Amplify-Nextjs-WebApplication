@@ -16,7 +16,7 @@ import {
   FileText,
   Users,
   Building,
-} from "lucide-react";
+} from "@/components/Icons";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import {
   Sidebar,

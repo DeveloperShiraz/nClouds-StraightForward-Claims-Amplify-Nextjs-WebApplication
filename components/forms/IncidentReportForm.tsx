@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
-import { CalendarIcon, Upload, X, CheckCircle, AlertCircle } from "lucide-react";
+import { CalendarIcon, Upload, X, CheckCircle, AlertCircle } from "@/components/Icons";
 import { uploadData } from "aws-amplify/storage";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 

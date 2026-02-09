@@ -12,7 +12,7 @@ import {
   Trash2,
   AlertCircle,
   Filter,
-} from "lucide-react";
+} from "@/components/Icons";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import { useRouter } from "next/navigation";
 import { AddUserDialog } from "@/components/AddUserDialog";
@@ -237,8 +237,8 @@ export default function UsersPage() {
         <button
           onClick={() => setRoleFilter(roleFilter === "Admin" ? "all" : "Admin")}
           className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "Admin"
-              ? "border-red-600 ring-2 ring-red-600"
-              : "border-gray-200 hover:border-red-300"
+            ? "border-red-600 ring-2 ring-red-600"
+            : "border-gray-200 hover:border-red-300"
             }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -258,8 +258,8 @@ export default function UsersPage() {
             )
           }
           className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "IncidentReporter"
-              ? "border-blue-600 ring-2 ring-blue-600"
-              : "border-gray-200 hover:border-blue-300"
+            ? "border-blue-600 ring-2 ring-blue-600"
+            : "border-gray-200 hover:border-blue-300"
             }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -281,8 +281,8 @@ export default function UsersPage() {
             setRoleFilter(roleFilter === "HomeOwner" ? "all" : "HomeOwner")
           }
           className={`bg-white rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "HomeOwner"
-              ? "border-green-600 ring-2 ring-green-600"
-              : "border-gray-200 hover:border-green-300"
+            ? "border-green-600 ring-2 ring-green-600"
+            : "border-gray-200 hover:border-green-300"
             }`}
         >
           <div className="flex items-center gap-3 mb-2">

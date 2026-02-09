@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getUrl } from 'aws-amplify/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CheckCircle2, AlertTriangle, Info, ShieldCheck, ShieldAlert, Zap, ImageIcon } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Info, ShieldCheck, ShieldAlert, Zap, ImageIcon } from "@/components/Icons";
 
 interface AIDetection {
     label: string;

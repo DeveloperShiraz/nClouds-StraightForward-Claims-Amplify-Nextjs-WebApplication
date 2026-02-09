@@ -5,7 +5,7 @@ import { IncidentReportForm } from "@/components/forms/IncidentReportForm";
 import Heading from "@/components/ui/Heading";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import { Button } from "@/components/ui/Button";
-import { Copy, CheckCircle, ExternalLink } from "lucide-react";
+import { Copy, CheckCircle, ExternalLink } from "@/components/Icons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 const IncidentFormPage = () => {

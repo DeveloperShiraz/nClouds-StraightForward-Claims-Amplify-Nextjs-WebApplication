@@ -2,7 +2,7 @@
 
 
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft } from "@/components/Icons";
 import { Button } from "@/components/ui/Button";
 import NavNotifications from "@/components/Nav-notifications";
 import { NavUser } from "@/components/Nav-user";

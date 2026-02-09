@@ -8,7 +8,7 @@ import {
   Sparkles,
   ArrowLeftRight,
   ArrowRightLeft,
-} from "lucide-react";
+} from "@/components/Icons";
 import { useState, useEffect } from "react";
 import { signOut, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 import { useAuthenticator } from "@aws-amplify/ui-react";

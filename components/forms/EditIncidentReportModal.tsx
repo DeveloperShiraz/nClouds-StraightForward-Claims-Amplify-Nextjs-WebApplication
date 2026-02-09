@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
-import { CalendarIcon, X, Upload, Trash2 } from "lucide-react";
+import { CalendarIcon, X, Upload, Trash2 } from "@/components/Icons";
 import { getUrl, uploadData, remove } from "aws-amplify/storage";
 
 import { Button } from "@/components/ui/Button";

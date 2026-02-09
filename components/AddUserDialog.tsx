@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "@/components/Icons";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import { useCompany } from "@/contexts/CompanyContext";
 
