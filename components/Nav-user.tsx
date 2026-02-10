@@ -1,23 +1,16 @@
 "use client";
 
 import {
-  BadgeCheck,
-  Bell,
-  CreditCard,
   LogOut,
-  Sparkles,
-  ArrowLeftRight,
-  ArrowRightLeft,
+  Pencil1Icon,
 } from "@/components/Icons";
 import { useState, useEffect } from "react";
 import { signOut, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
-import { useAuthenticator } from "@aws-amplify/ui-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -28,14 +21,18 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/Sidebar";
-import { MaterialIcons } from "./Icons";
+import { EditProfileModal } from "@/components/forms/EditProfileModal";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [userData, setUserData] = useState({
     name: "",
+    given_name: "",
+    family_name: "",
+    phone_number: "",
     email: "",
     initials: "",
   });
@@ -61,18 +58,29 @@ export function NavUser() {
       const { username } = await getCurrentUser();
       const attributes = await fetchUserAttributes();
       const name = attributes.name || username;
+      const given_name = attributes.given_name || "";
+      const family_name = attributes.family_name || "";
       const email = attributes.email || "";
+      const phone_number = attributes.phone_number || "";
 
-      // Generate initials from name
-      const names = name.split(" ");
-      const initials =
-        names.length >= 2
-          ? `${names[0][0]}${names[1][0]}`.toUpperCase()
-          : name.slice(0, 2).toUpperCase();
+      // Generate initials
+      let initials = "";
+      if (given_name && family_name) {
+        initials = `${given_name[0]}${family_name[0]}`.toUpperCase();
+      } else {
+        const names = name.split(" ");
+        initials =
+          names.length >= 2
+            ? `${names[0][0]}${names[1][0]}`.toUpperCase()
+            : name.slice(0, 2).toUpperCase();
+      }
 
       setUserData({
         name,
+        given_name,
+        family_name,
         email,
+        phone_number,
         initials,
       });
     } catch (error) {
@@ -141,7 +149,9 @@ export function NavUser() {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">
-                      {userData.name}
+                      {userData.given_name && userData.family_name
+                        ? `${userData.given_name} ${userData.family_name}`
+                        : userData.name}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {userData.email}
@@ -150,6 +160,13 @@ export function NavUser() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                className="cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                onClick={() => setIsEditProfileModalOpen(true)}
+              >
+                <Pencil1Icon className="mr-2 h-4 w-4" />
+                <span>Edit Profile</span>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                 onClick={handleSignOut}
@@ -162,6 +179,17 @@ export function NavUser() {
           </DropdownMenu>
         )}
       </SidebarMenuItem>
+      <EditProfileModal
+        isOpen={isEditProfileModalOpen}
+        onClose={() => setIsEditProfileModalOpen(false)}
+        onSuccess={fetchUserData}
+        userData={{
+          given_name: userData.given_name,
+          family_name: userData.family_name,
+          phone_number: userData.phone_number,
+          email: userData.email,
+        }}
+      />
     </SidebarMenu>
   );
 }

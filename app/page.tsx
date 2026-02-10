@@ -211,7 +211,7 @@ export default function LandingPage() {
             email: normalizedEmail,
             given_name: firstName,
             family_name: lastName,
-            phone_number: phoneNumber,
+            phone_number: `+1${phoneNumber.replace(/\D/g, '')}`,
             "custom:role": role,
           },
         },

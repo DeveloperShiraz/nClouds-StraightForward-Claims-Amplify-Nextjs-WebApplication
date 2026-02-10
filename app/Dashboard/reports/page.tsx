@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getUrl, remove } from "aws-amplify/storage";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/data";
@@ -47,7 +48,11 @@ interface IncidentReport {
   weatherReport?: any;
 }
 
+const client = generateClient<Schema>();
+
 export default function ReportsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [filteredReports, setFilteredReports] = useState<IncidentReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,6 +64,41 @@ export default function ReportsPage() {
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>("all");
   const { isAdmin, isIncidentReporter, isSuperAdmin, isHomeOwner, isLoading: roleLoading, companyId, userEmail } = useUserRole();
   const { companies } = useCompany();
+
+  // Address filter from URL query params (set when navigating from Home Management)
+  const addressFilter = searchParams.get("address");
+  const cityFilter = searchParams.get("city");
+  const stateFilter = searchParams.get("state");
+  const zipFilter = searchParams.get("zip");
+  const hasAddressFilter = !!(addressFilter || cityFilter || stateFilter || zipFilter);
+
+  // Fetch user's properties to look up property nickname for the filter banner
+  const [propertyNickname, setPropertyNickname] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hasAddressFilter) {
+      setPropertyNickname(null);
+      return;
+    }
+    const lookupNickname = async () => {
+      try {
+        const { data } = await client.models.Property.list();
+        const match = data?.find((p: any) =>
+          p.address?.toLowerCase() === addressFilter?.toLowerCase() &&
+          p.city?.toLowerCase() === cityFilter?.toLowerCase() &&
+          p.state?.toLowerCase() === stateFilter?.toLowerCase() &&
+          p.zip?.toLowerCase() === zipFilter?.toLowerCase()
+        );
+        setPropertyNickname(match?.propertyName || null);
+      } catch {
+        setPropertyNickname(null);
+      }
+    };
+    lookupNickname();
+  }, [hasAddressFilter, addressFilter, cityFilter, stateFilter, zipFilter]);
+
+  const clearAddressFilter = () => {
+    router.push("/Dashboard/reports");
+  };
 
   const getSignedPhotoUrls = async (photoPaths: string[]): Promise<string[]> => {
     if (!photoPaths || photoPaths.length === 0) return [];
@@ -112,9 +152,9 @@ export default function ReportsPage() {
 
       if (!isSuperAdmin) {
         allReports = allReports.filter((report: IncidentReport) => {
-          // 1. HomeOwner Rule: Strict email match
+          // 1. HomeOwner Rule: Strict email match (case-insensitive)
           if (isHomeOwner) {
-            return userEmail && report.email === userEmail;
+            return userEmail && report.email?.toLowerCase() === userEmail.toLowerCase();
           }
 
           // 2. Admin/IncidentReporter Rule: Company match
@@ -156,16 +196,28 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleLoading, isAdmin, isIncidentReporter]);
 
-  // Apply company filter
+  // Apply company filter AND address filter
   useEffect(() => {
-    if (selectedCompanyFilter === "all") {
-      setFilteredReports(reports);
-    } else {
-      setFilteredReports(
-        reports.filter(report => report.companyId === selectedCompanyFilter)
-      );
+    let filtered = reports;
+
+    // Company filter
+    if (selectedCompanyFilter !== "all") {
+      filtered = filtered.filter(report => report.companyId === selectedCompanyFilter);
     }
-  }, [selectedCompanyFilter, reports]);
+
+    // Address filter from URL query params
+    if (hasAddressFilter) {
+      filtered = filtered.filter(report => {
+        const matchAddress = !addressFilter || report.address?.toLowerCase() === addressFilter.toLowerCase();
+        const matchCity = !cityFilter || report.city?.toLowerCase() === cityFilter.toLowerCase();
+        const matchState = !stateFilter || report.state?.toLowerCase() === stateFilter.toLowerCase();
+        const matchZip = !zipFilter || report.zip?.toLowerCase() === zipFilter.toLowerCase();
+        return matchAddress && matchCity && matchState && matchZip;
+      });
+    }
+
+    setFilteredReports(filtered);
+  }, [selectedCompanyFilter, reports, hasAddressFilter, addressFilter, cityFilter, stateFilter, zipFilter]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this incident report? This action cannot be undone.")) {
@@ -937,6 +989,31 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Address filter banner (from Home Management navigation) */}
+      {hasAddressFilter && (
+        <div className="mb-4 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                Filtered by Property Address: <span className="font-semibold">{addressFilter}{cityFilter ? `, ${cityFilter}` : ""}{stateFilter ? `, ${stateFilter}` : ""}{zipFilter ? ` ${zipFilter}` : ""}</span>
+              </span>
+            </div>
+            {propertyNickname && (
+              <span className="text-sm text-blue-700 dark:text-blue-400 ml-6">
+                Nicknamed as: <span className="font-semibold">{propertyNickname}</span>
+              </span>
+            )}
+          </div>
+          <button
+            onClick={clearAddressFilter}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded transition-colors"
+          >
+            ✕ Clear filter
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
@@ -948,14 +1025,24 @@ export default function ReportsPage() {
       )}
 
       {filteredReports.length === 0 && !error && (
-        <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 font-medium mb-1">No incident reports found</p>
-          <p className="text-sm text-gray-500">
-            {selectedCompanyFilter !== "all"
-              ? "No reports found for the selected company."
-              : "Submit an incident report to see it here."}
+        <div className="text-center py-12 bg-card border border-gray-200 dark:border-gray-700 rounded-lg">
+          <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-foreground font-medium mb-1">No incident reports found</p>
+          <p className="text-sm text-muted-foreground">
+            {hasAddressFilter
+              ? "No reports found for this property address."
+              : selectedCompanyFilter !== "all"
+                ? "No reports found for the selected company."
+                : "Submit an incident report to see it here."}
           </p>
+          {hasAddressFilter && (
+            <button
+              onClick={clearAddressFilter}
+              className="mt-3 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Clear address filter
+            </button>
+          )}
         </div>
       )}
 

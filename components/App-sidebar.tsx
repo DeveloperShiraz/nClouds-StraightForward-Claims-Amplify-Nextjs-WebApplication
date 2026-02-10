@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import Logo from "@/public/ClaimVerifAI.png";
 import {
   LayoutDashboard,
+  Home,
   LinkIcon,
   Code,
   Lightbulb,
@@ -311,8 +312,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ];
     }
 
-    // Home Owner: Reports only (read-only)
+    // Home Owner: Home Management, Reports (read-only)
     return [
+      {
+        label: "Home Management",
+        icon: Home,
+        href: "/Dashboard/home-management",
+        active: pathname === "/Dashboard/home-management",
+      },
       {
         label: "Reports",
         icon: FileText,

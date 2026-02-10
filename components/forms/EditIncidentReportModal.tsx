@@ -4,15 +4,16 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { cn } from "@/lib/utils";
-
-import { CalendarIcon, X, Upload, Trash2 } from "@/components/Icons";
-import { getUrl, uploadData, remove } from "aws-amplify/storage";
-
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Calendar } from "@/components/ui/Calendar";
+import { generateClient } from "aws-amplify/data";
+import { type Schema } from "@/amplify/data/resource";
+import { uploadData, getUrl, remove } from "aws-amplify/storage";
+import {
+  X,
+  Upload,
+  Trash2,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+} from "@/components/Icons";
 import {
   Form,
   FormControl,
@@ -21,11 +22,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/Form";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
 import {
   Select,
   SelectContent,
@@ -33,319 +32,231 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import { Calendar } from "@/components/ui/Calendar";
+import { cn } from "@/lib/utils";
 
-const editIncidentReportSchema = z.object({
-  claimNumber: z.string()
-    .min(1, "Claim number is required")
-    .max(50, "Claim number must be 50 characters or less")
-    .regex(/^[a-zA-Z0-9\-_]+$/, "Claim number can only contain letters, numbers, hyphens, and underscores"),
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  phone: z.string().regex(/^\d{10}$/, "Phone must be 10 digits"),
+const client = generateClient<Schema>();
+
+const formSchema = z.object({
+  firstName: z.string().min(1, "First Name is required"),
+  lastName: z.string().min(1, "Last Name is required"),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
   email: z.string().email("Invalid email address"),
-  address: z.string().min(5, "Address is required"),
+  address: z.string().min(1, "Street Address is required"),
   apartment: z.string().optional(),
-  city: z.string().min(2, "City is required"),
-  state: z.string().length(2, "State must be 2 characters (e.g., TX)"),
-  zip: z.string().regex(/^\d{5}$/, "ZIP must be 5 digits"),
-  incidentDate: z.date(),
+  city: z.string().min(1, "City is required"),
+  state: z.string().length(2, "State must be 2 characters").toUpperCase(),
+  zip: z.string().length(5, "ZIP Code must be 5 digits"),
+  incidentDate: z.date({ required_error: "Incident Date is required" }),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  shingleExposure: z.string()
-    .optional()
-    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0 && parseFloat(val) <= 12),
-      "Shingle exposure must be between 0 and 12 inches"),
-  hailSize: z.string()
-    .optional()
-    .refine((val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0 && parseFloat(val) <= 10),
-      "Hail size must be between 0 and 10 inches"),
-  weatherDate: z.date().optional().refine((date) => !date || date <= new Date(), "Weather date cannot be in the future"),
-  weatherDescription: z.string().max(500, "Weather description must be 500 characters or less").optional(),
+  shingleExposure: z.string().optional(),
+  hailSize: z.string().optional(),
+  weatherDate: z.date().optional(),
+  weatherDescription: z.string().optional(),
   status: z.enum(["submitted", "in_review", "resolved"]).optional(),
+  claimNumber: z.string().optional(),
 });
 
-type EditIncidentReportFormData = z.infer<typeof editIncidentReportSchema>;
-
-interface IncidentReport {
-  id: string;
-  claimNumber: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string;
-  address: string;
-  apartment?: string;
-  city: string;
-  state: string;
-  zip: string;
-  incidentDate: string;
-  description: string;
-  shingleExposure?: number;
-  weatherReport?: string | any; // JSON string or object
-  photoUrls?: string[];
-  status?: string;
-  submittedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  submittedBy?: string;
-}
-
 interface EditIncidentReportModalProps {
-  report: IncidentReport;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  reportId: string;
+  onUpdate: () => void;
 }
 
 export function EditIncidentReportModal({
-  report,
   isOpen,
   onClose,
-  onSuccess,
+  reportId,
+  onUpdate,
 }: EditIncidentReportModalProps) {
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<File[]>([]);
-  const [deletedPhotos, setDeletedPhotos] = useState<string[]>([]);
+  const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
 
-  // Helper to parse weather report safely
-  const parseWeatherReport = (reportData: any) => {
-    try {
-      if (!reportData) return {};
-      return typeof reportData === 'string' ? JSON.parse(reportData) : reportData;
-    } catch (e) {
-      console.error("Failed to parse weather report for edit:", e);
-      return {};
-    }
-  };
-
-  const form = useForm<EditIncidentReportFormData>({
-    resolver: zodResolver(editIncidentReportSchema),
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
-      claimNumber: report.claimNumber,
-      firstName: report.firstName,
-      lastName: report.lastName,
-      phone: report.phone.replace(/\D/g, ''),
-      email: report.email,
-      address: report.address,
-      apartment: report.apartment || "",
-      city: report.city,
-      state: report.state,
-      zip: report.zip.replace(/\D/g, ''),
-      incidentDate: new Date(report.incidentDate),
-      description: report.description,
-      shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
-      hailSize: "", // Will be set in useEffect
-      weatherDate: undefined, // Will be set in useEffect
-      weatherDescription: "", // Will be set in useEffect
-      status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
+      firstName: "",
+      lastName: "",
+      phone: "",
+      email: "",
+      address: "",
+      apartment: "",
+      city: "",
+      state: "",
+      zip: "",
+      description: "",
+      shingleExposure: "",
+      hailSize: "",
+      weatherDescription: "",
+      status: "submitted",
+      claimNumber: "",
     },
   });
 
+  // Fetch report data
   useEffect(() => {
-    if (isOpen) {
-      const weatherData = parseWeatherReport(report.weatherReport);
+    const fetchReport = async () => {
+      if (!isOpen || !reportId) return;
 
-      // Reset form with report data when modal opens
-      form.reset({
-        claimNumber: report.claimNumber,
-        firstName: report.firstName,
-        lastName: report.lastName,
-        phone: report.phone.replace(/\D/g, ''),
-        email: report.email,
-        address: report.address,
-        apartment: report.apartment || "",
-        city: report.city,
-        state: report.state,
-        zip: report.zip.replace(/\D/g, ''),
-        incidentDate: new Date(report.incidentDate),
-        description: report.description,
-        shingleExposure: report.shingleExposure ? report.shingleExposure.toString() : "",
-        hailSize: weatherData.reported_hail_size_inches ? weatherData.reported_hail_size_inches.toString() : "",
-        weatherDate: weatherData.weather_date ? new Date(weatherData.weather_date) : undefined,
-        weatherDescription: weatherData.weather_description || "",
-        status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
-      });
+      setIsLoading(true);
+      try {
+        const { data: report, errors } = await client.models.IncidentReport.get({
+          id: reportId,
+        });
 
-      // Initialize photos
-      setExistingPhotos(report.photoUrls || []);
-      setNewPhotos([]);
-      setDeletedPhotos([]);
+        if (errors) throw new Error(errors[0].message);
+        if (!report) throw new Error("Report not found");
 
-      // Fetch signed URLs for existing photos
-      const fetchSignedUrls = async () => {
-        if (report.photoUrls && report.photoUrls.length > 0) {
-          try {
-            const urlPromises = report.photoUrls.map(async (path) => {
-              try {
-                const result = await getUrl({ path });
-                return result.url.toString();
-              } catch (error) {
-                console.error(`Error getting URL for ${path}:`, error);
-                return null;
-              }
-            });
-            const urls = await Promise.all(urlPromises);
-            setPhotoSignedUrls(urls.filter((url): url is string => url !== null));
-          } catch (error) {
-            console.error("Error fetching signed URLs:", error);
-          }
-        } else {
-          setPhotoSignedUrls([]);
-        }
-      };
+        const parsedPhotos = report.photos ? JSON.parse(report.photos as string) : [];
+        setExistingPhotos(parsedPhotos);
 
-      fetchSignedUrls();
-    }
-  }, [isOpen, report, form]);
+        // Fetch signed URLs for existing photos
+        const signedUrls = await Promise.all(
+          parsedPhotos.map(async (path: string) => {
+            const result = await getUrl({ path });
+            return result.url.toString();
+          })
+        );
+        setPhotoSignedUrls(signedUrls);
 
-  const handleDeleteExistingPhoto = async (photoPath: string, index: number) => {
-    if (!confirm("Are you sure you want to delete this photo?")) {
-      return;
-    }
+        form.reset({
+          firstName: report.firstName || "",
+          lastName: report.lastName || "",
+          phone: report.phone || "",
+          email: report.email || "",
+          address: report.address || "",
+          apartment: report.apartment || "",
+          city: report.city || "",
+          state: report.state || "",
+          zip: report.zip || "",
+          incidentDate: report.incidentDate ? new Date(report.incidentDate) : undefined,
+          description: report.description || "",
+          shingleExposure: report.shingleExposure?.toString() || "",
+          hailSize: report.hailSize?.toString() || "",
+          weatherDate: report.weatherDate ? new Date(report.weatherDate) : undefined,
+          weatherDescription: report.weatherDescription || "",
+          status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
+          claimNumber: report.claimNumber || "",
+        });
+      } catch (error) {
+        console.error("Error fetching report:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    try {
-      // Mark photo for deletion
-      setDeletedPhotos([...deletedPhotos, photoPath]);
-
-      // Remove from UI
-      const newExistingPhotos = existingPhotos.filter((p) => p !== photoPath);
-      const newSignedUrls = [...photoSignedUrls];
-      newSignedUrls.splice(index, 1);
-
-      setExistingPhotos(newExistingPhotos);
-      setPhotoSignedUrls(newSignedUrls);
-
-      console.log(`Marked photo for deletion: ${photoPath}`);
-    } catch (error) {
-      console.error("Error marking photo for deletion:", error);
-      alert("Failed to delete photo. Please try again.");
-    }
-  };
+    fetchReport();
+  }, [isOpen, reportId, form]);
 
   const handleAddNewPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const MAX_TOTAL_FILES = 20;
-      const currentTotal = existingPhotos.length + newPhotos.length;
-      const remainingSlots = MAX_TOTAL_FILES - currentTotal;
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      const validFiles = filesArray.filter((file) => {
+        const isValidType = ["image/jpeg", "image/png", "image/gif"].includes(
+          file.type
+        );
+        return isValidType;
+      });
 
-      if (remainingSlots <= 0) {
-        alert("Maximum limit of 20 images reached.");
+      if (existingPhotos.length + newPhotos.length + validFiles.length > 20) {
+        alert("Maximum 20 photos allowed.");
         return;
       }
 
-      const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-      let fileArray = Array.from(files).filter(file => allowedTypes.includes(file.type));
-
-      if (fileArray.length > remainingSlots) {
-        alert(`Only the first ${remainingSlots} valid files were added. Maximum limit is 20 images total.`);
-        fileArray = fileArray.slice(0, remainingSlots);
-      } else if (fileArray.length < files.length) {
-        alert("Some files were skipped. Only JPEG, PNG, and GIF are allowed.");
-      }
-
-      setNewPhotos([...newPhotos, ...fileArray]);
+      setNewPhotos((prev) => [...prev, ...validFiles]);
     }
   };
 
   const handleRemoveNewPhoto = (index: number) => {
-    const updatedPhotos = [...newPhotos];
-    updatedPhotos.splice(index, 1);
-    setNewPhotos(updatedPhotos);
+    setNewPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const onSubmit = async (data: EditIncidentReportFormData) => {
+  const handleDeleteExistingPhoto = (path: string, index: number) => {
+    setPhotosToDelete((prev) => [...prev, path]);
+    setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoSignedUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
     try {
-      console.log("Updating incident report:", report.id);
-
-      // Step 1: Delete removed photos from S3
-      if (deletedPhotos.length > 0) {
-        console.log(`Deleting ${deletedPhotos.length} photos from S3...`);
-        const deletePromises = deletedPhotos.map(async (photoPath) => {
+      // 1. Delete removed photos from S3
+      await Promise.all(
+        photosToDelete.map(async (path) => {
           try {
-            await remove({ path: photoPath });
-            console.log(`✅ Deleted photo: ${photoPath}`);
-          } catch (error) {
-            console.error(`Failed to delete photo ${photoPath}:`, error);
+            await remove({ path });
+          } catch (err) {
+            console.error("Error deleting photo:", path, err);
           }
-        });
-        await Promise.all(deletePromises);
+        })
+      );
+
+      // 2. Upload new photos
+      const uploadedPhotoPaths: string[] = [];
+      const limitedNewPhotos = newPhotos.slice(
+        0,
+        20 - existingPhotos.length
+      );
+
+      for (const file of limitedNewPhotos) {
+        try {
+          const timestamp = Date.now();
+          const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+          const key = `incident-photos/${timestamp}-${cleanFileName}`;
+
+          await uploadData({
+            path: key,
+            data: file,
+            options: {
+              contentType: file.type,
+            },
+          }).result;
+
+          uploadedPhotoPaths.push(key);
+        } catch (error) {
+          console.error(`Error uploading ${file.name}:`, error);
+        }
       }
 
-      // Step 2: Upload new photos to S3
-      let newPhotoUrls: string[] = [];
-      if (newPhotos.length > 0) {
-        console.log(`Uploading ${newPhotos.length} new photos to S3...`);
-        const uploadPromises = newPhotos.map(async (photo, index) => {
-          const path = `incident-photos/${report.id}/${Date.now()}-${index}-${photo.name}`;
-          try {
-            const result = await uploadData({
-              path,
-              data: photo,
-              options: {
-                contentType: photo.type,
-              },
-            }).result;
-            console.log(`✅ Uploaded photo: ${result.path}`);
-            return result.path;
-          } catch (error) {
-            console.error("Error uploading photo:", error);
-            throw error;
-          }
-        });
-        newPhotoUrls = await Promise.all(uploadPromises);
-      }
+      const finalPhotos = [...existingPhotos, ...uploadedPhotoPaths];
 
-      // Step 3: Calculate final photoUrls array (existing - deleted + new)
-      const finalPhotoUrls = [
-        ...existingPhotos.filter(p => !deletedPhotos.includes(p)),
-        ...newPhotoUrls
-      ];
-
-      // Step 4: Update the report in DynamoDB via API
-      const updateData = {
-        claimNumber: data.claimNumber,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phone: data.phone.replace(/\D/g, ''),
-        email: data.email,
-        address: data.address,
-        apartment: data.apartment || "",
-        city: data.city,
-        state: data.state,
-        zip: data.zip,
-        incidentDate: data.incidentDate.toISOString().split('T')[0],
-        description: data.description,
-        shingleExposure: data.shingleExposure ? parseFloat(data.shingleExposure) : undefined,
-        weatherReport: JSON.stringify({
-          reported_hail_size_inches: data.hailSize ? parseFloat(data.hailSize) : null,
-          weather_date: data.weatherDate ? data.weatherDate.toISOString() : null,
-          weather_description: data.weatherDescription || ""
-        }),
-        status: data.status,
-        photoUrls: finalPhotoUrls,
-      };
-
-      const response = await fetch(`/api/incident-reports/${report.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
+      // 3. Update IncidentReport record
+      await client.models.IncidentReport.update({
+        id: reportId,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        apartment: values.apartment,
+        city: values.city,
+        state: values.state,
+        zip: values.zip,
+        incidentDate: values.incidentDate.toISOString().split("T")[0],
+        description: values.description,
+        photos: JSON.stringify(finalPhotos),
+        shingleExposure: values.shingleExposure ? parseFloat(values.shingleExposure) : null,
+        hailSize: values.hailSize ? parseFloat(values.hailSize) : null,
+        weatherDate: values.weatherDate
+          ? values.weatherDate.toISOString().split("T")[0]
+          : null,
+        weatherDescription: values.weatherDescription,
+        status: values.status,
+        claimNumber: values.claimNumber,
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        console.log("✅ Successfully updated incident report");
-        onSuccess();
-        onClose();
-      } else {
-        console.error("❌ Error updating report:", result.error);
-        alert(`Failed to update report: ${result.error}`);
-      }
+      onUpdate();
+      onClose();
     } catch (error: any) {
       console.error("Error updating report:", error);
       alert(`Error updating report: ${error?.message || "Unknown error"}`);
@@ -366,12 +277,12 @@ export function EditIncidentReportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Edit Incident Report</h2>
+      <div className="bg-white dark:bg-slate-950 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-slate-950 border-b border-gray-200 dark:border-slate-800 p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-50">Edit Incident Report</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-slate-400 dark:hover:text-slate-200 hover:text-gray-600 transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -385,7 +296,7 @@ export function EditIncidentReportModal({
               name="claimNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Claim Number</FormLabel>
+                  <FormLabel className="dark:text-slate-200">Claim Number</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="CLM-2024-001"
@@ -404,7 +315,7 @@ export function EditIncidentReportModal({
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name</FormLabel>
+                    <FormLabel className="dark:text-slate-200">First Name</FormLabel>
                     <FormControl>
                       <Input placeholder="John" {...field} />
                     </FormControl>
@@ -418,7 +329,7 @@ export function EditIncidentReportModal({
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Name</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Last Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Doe" {...field} />
                     </FormControl>
@@ -432,7 +343,7 @@ export function EditIncidentReportModal({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Phone Number</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="(555) 555-5555"
@@ -454,7 +365,7 @@ export function EditIncidentReportModal({
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Email</FormLabel>
                     <FormControl>
                       <Input placeholder="john.doe@example.com" {...field} />
                     </FormControl>
@@ -470,7 +381,7 @@ export function EditIncidentReportModal({
                 name="address"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2">
-                    <FormLabel>Street Address</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Street Address</FormLabel>
                     <FormControl>
                       <Input placeholder="123 Main St" {...field} />
                     </FormControl>
@@ -484,7 +395,7 @@ export function EditIncidentReportModal({
                 name="apartment"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Apt/Unit (Optional)</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Apt/Unit (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="Apt 4B" {...field} />
                     </FormControl>
@@ -500,7 +411,7 @@ export function EditIncidentReportModal({
                 name="city"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City</FormLabel>
+                    <FormLabel className="dark:text-slate-200">City</FormLabel>
                     <FormControl>
                       <Input placeholder="Houston" {...field} />
                     </FormControl>
@@ -514,7 +425,7 @@ export function EditIncidentReportModal({
                 name="state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>State</FormLabel>
+                    <FormLabel className="dark:text-slate-200">State</FormLabel>
                     <FormControl>
                       <Input placeholder="TX" maxLength={2} {...field} />
                     </FormControl>
@@ -528,7 +439,7 @@ export function EditIncidentReportModal({
                 name="zip"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ZIP Code</FormLabel>
+                    <FormLabel className="dark:text-slate-200">ZIP Code</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="77001"
@@ -552,7 +463,7 @@ export function EditIncidentReportModal({
                 name="incidentDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Incident Date</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Incident Date</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -591,10 +502,10 @@ export function EditIncidentReportModal({
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Status</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className={cn(!field.value && "text-muted-foreground")}>
+                        <SelectTrigger className={cn(!field.value && "text-muted-foreground", "dark:text-slate-200 dark:border-slate-700")}>
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
@@ -615,7 +526,7 @@ export function EditIncidentReportModal({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Incident Description</FormLabel>
+                  <FormLabel className="dark:text-slate-200">Incident Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Please describe the incident in detail..."
@@ -628,15 +539,15 @@ export function EditIncidentReportModal({
               )}
             />
 
-            <div className="space-y-4 border-t border-gray-200 pt-4">
-              <h3 className="text-sm font-medium text-gray-700">Property Details</h3>
+            <div className="space-y-4 border-t border-gray-200 dark:border-slate-800 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-slate-200">Property Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="shingleExposure"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Shingle Exposure (Optional)</FormLabel>
+                      <FormLabel className="dark:text-slate-200">Shingle Exposure (Optional)</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -648,12 +559,12 @@ export function EditIncidentReportModal({
                             {...field}
                             className="pr-16"
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-slate-400">
                             inches
                           </span>
                         </div>
                       </FormControl>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
                         Height from top to bottom of shingle (0-12 inches)
                       </p>
                       <FormMessage />
@@ -663,15 +574,15 @@ export function EditIncidentReportModal({
               </div>
             </div>
 
-            <div className="space-y-4 border-t border-gray-200 pt-4">
-              <h3 className="text-sm font-medium text-gray-700">Weather Information (Optional)</h3>
+            <div className="space-y-4 border-t border-gray-200 dark:border-slate-800 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-slate-200">Weather Information (Optional)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="hailSize"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hail Size</FormLabel>
+                      <FormLabel className="dark:text-slate-200">Hail Size</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -683,7 +594,7 @@ export function EditIncidentReportModal({
                             {...field}
                             className="pr-16"
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-slate-400">
                             inches
                           </span>
                         </div>
@@ -698,7 +609,7 @@ export function EditIncidentReportModal({
                   name="weatherDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Weather Date</FormLabel>
+                      <FormLabel className="dark:text-slate-200">Weather Date</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -738,7 +649,7 @@ export function EditIncidentReportModal({
                 name="weatherDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Weather Description</FormLabel>
+                    <FormLabel className="dark:text-slate-200">Weather Description</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Describe weather conditions (e.g., 'Heavy hail storm with high winds')..."
@@ -755,19 +666,19 @@ export function EditIncidentReportModal({
             {/* Photo Management Section */}
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Incident Photos</h3>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-slate-200 mb-3">Incident Photos</h3>
 
                 {/* Existing Photos */}
                 {photoSignedUrls.length > 0 && (
                   <div className="mb-4">
-                    <p className="text-xs text-gray-500 mb-2">Current Photos</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">Current Photos</p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {photoSignedUrls.map((signedUrl, index) => (
                         <div key={index} className="relative group">
                           <img
                             src={signedUrl}
                             alt={`Photo ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                            className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-slate-800"
                           />
                           <button
                             type="button"
@@ -776,7 +687,7 @@ export function EditIncidentReportModal({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          <p className="text-xs text-gray-600 mt-1 text-center">Photo {index + 1}</p>
+                          <p className="text-xs text-gray-600 dark:text-slate-400 mt-1 text-center">Photo {index + 1}</p>
                         </div>
                       ))}
                     </div>
@@ -786,7 +697,7 @@ export function EditIncidentReportModal({
                 {/* New Photos Preview */}
                 {newPhotos.length > 0 && (
                   <div className="mb-4">
-                    <p className="text-xs text-gray-500 mb-2">New Photos to Upload</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">New Photos to Upload</p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {newPhotos.map((photo, index) => (
                         <div key={index} className="relative group">
@@ -802,7 +713,7 @@ export function EditIncidentReportModal({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          <p className="text-xs text-gray-600 mt-1 text-center">New {index + 1}</p>
+                          <p className="text-xs text-gray-600 dark:text-slate-400 mt-1 text-center">New {index + 1}</p>
                         </div>
                       ))}
                     </div>
@@ -812,7 +723,7 @@ export function EditIncidentReportModal({
                 {/* Upload New Photos Button */}
                 <div className="flex items-center gap-2">
                   <label className="cursor-pointer">
-                    <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-700 dark:text-slate-200 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors">
                       <Upload className="w-4 h-4" />
                       <span className="text-sm font-medium">Add Photos</span>
                     </div>
@@ -824,17 +735,17 @@ export function EditIncidentReportModal({
                       className="hidden"
                     />
                   </label>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     *Only .JPG, .PNG, .GIF allowed &bull; Max 20 images total*
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {photoSignedUrls.length + newPhotos.length} photo(s) total
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-slate-800">
               <Button
                 type="button"
                 variant="outline"

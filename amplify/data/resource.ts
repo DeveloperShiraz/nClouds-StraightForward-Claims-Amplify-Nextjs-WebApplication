@@ -130,6 +130,22 @@ const schema = a.schema({
     .returns(a.ref("User"))
     .handler(a.handler.function(adminActions))
     .authorization((allow) => [allow.groups(["SuperAdmin", "Admin"])]),
+
+  Property: a
+    .model({
+      propertyName: a.string().required(),
+      address: a.string().required(),
+      apartment: a.string(),
+      city: a.string().required(),
+      state: a.string().required(),
+      zip: a.string().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.owner(),
+      allow.groups(["SuperAdmin", "Admin"]).to(["read"]), // Admins can view all properties
+    ]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
