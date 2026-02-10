@@ -19,7 +19,7 @@ applications:
             - rm -rf node_modules/@aws-sdk
             - rm -rf node_modules/aws-cdk-lib node_modules/aws-cdk node_modules/@aws-cdk
             - rm -rf node_modules/typescript node_modules/esbuild node_modules/@esbuild
-            - rm -rf node_modules/pnpm
+            - rm -rf node_modules/.pnpm node_modules/.modules.yaml node_modules/.pnpm-workspace-state-v1.json
             # Aggressive cleanup of node_modules to ensure only runtime deps remain (if bundled)
             - find node_modules -name "*.d.ts" -delete
             - find node_modules -name "*.map" -delete
