@@ -40,7 +40,12 @@ export default function LandingPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [role, setRole] = useState<"Contractor" | "HomeOwner">("HomeOwner");
+  const [address, setAddress] = useState("");
+  const [apartment, setApartment] = useState("");
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [role, setRole] = useState<"HomeOwner">("HomeOwner");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -115,6 +120,22 @@ export default function LandingPage() {
       newErrors.email = "Email is required";
     } else if (!emailRegex.test(email)) {
       newErrors.email = "Invalid email address";
+    }
+
+    // Address validation
+    if (!address.trim()) {
+      newErrors.address = "Address is required";
+    }
+    if (!city.trim()) {
+      newErrors.city = "City is required";
+    }
+    if (!stateName.trim()) {
+      newErrors.stateName = "State is required";
+    }
+    if (!zipCode.trim()) {
+      newErrors.zipCode = "Zip code is required";
+    } else if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) {
+      newErrors.zipCode = "Invalid zip code format";
     }
 
     // Password validation
@@ -212,6 +233,7 @@ export default function LandingPage() {
             given_name: firstName,
             family_name: lastName,
             phone_number: `+1${phoneNumber.replace(/\D/g, '')}`,
+            address: `${address.trim()}${apartment.trim() ? `, ${apartment.trim()}` : ''}, ${city.trim()}, ${stateName.trim()} ${zipCode.trim()}`,
             "custom:role": role,
           },
         },
@@ -318,6 +340,7 @@ export default function LandingPage() {
                       setFirstName(e.target.value);
                       if (fieldErrors.firstName) setFieldErrors(prev => ({ ...prev, firstName: "" }));
                     }}
+                    onBlur={() => { if (!firstName.trim()) setFieldErrors(prev => ({ ...prev, firstName: "First name is required" })); }}
                     className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.firstName ? 'border-red-500' : 'border-input'}`}
                     required
                     placeholder="John"
@@ -333,6 +356,7 @@ export default function LandingPage() {
                       setLastName(e.target.value);
                       if (fieldErrors.lastName) setFieldErrors(prev => ({ ...prev, lastName: "" }));
                     }}
+                    onBlur={() => { if (!lastName.trim()) setFieldErrors(prev => ({ ...prev, lastName: "Last name is required" })); }}
                     className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.lastName ? 'border-red-500' : 'border-input'}`}
                     required
                     placeholder="Doe"
@@ -352,6 +376,11 @@ export default function LandingPage() {
                       setPhoneNumber(formatted);
                       if (fieldErrors.phoneNumber) setFieldErrors(prev => ({ ...prev, phoneNumber: "" }));
                     }}
+                    onBlur={() => {
+                      const digits = phoneNumber.replace(/\D/g, '');
+                      if (!digits) setFieldErrors(prev => ({ ...prev, phoneNumber: "Phone number is required" }));
+                      else if (digits.length < 10) setFieldErrors(prev => ({ ...prev, phoneNumber: "Phone number must be at least 10 digits" }));
+                    }}
                     className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.phoneNumber ? 'border-red-500' : 'border-input'}`}
                     required
                     placeholder="(555) 555-5555"
@@ -368,11 +397,102 @@ export default function LandingPage() {
                       setEmail(e.target.value);
                       if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: "" }));
                     }}
+                    onBlur={() => {
+                      if (!email.trim()) setFieldErrors(prev => ({ ...prev, email: "Email is required" }));
+                      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) setFieldErrors(prev => ({ ...prev, email: "Invalid email address" }));
+                    }}
                     className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.email ? 'border-red-500' : 'border-input'}`}
                     required
                     placeholder="john@example.com"
                   />
                   {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">Address</label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      if (fieldErrors.address) setFieldErrors(prev => ({ ...prev, address: "" }));
+                    }}
+                    onBlur={() => { if (!address.trim()) setFieldErrors(prev => ({ ...prev, address: "Address is required" })); }}
+                    className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.address ? 'border-red-500' : 'border-input'}`}
+                    required
+                    placeholder="123 Main St"
+                  />
+                  {fieldErrors.address && <p className="text-xs text-red-500 mt-1">{fieldErrors.address}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">Apartment, Suite <span className="text-muted-foreground font-normal">(Optional)</span></label>
+                  <input
+                    type="text"
+                    value={apartment}
+                    onChange={(e) => setApartment(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    placeholder="Apt 4B"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">City</label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => {
+                      setCity(e.target.value);
+                      if (fieldErrors.city) setFieldErrors(prev => ({ ...prev, city: "" }));
+                    }}
+                    onBlur={() => { if (!city.trim()) setFieldErrors(prev => ({ ...prev, city: "City is required" })); }}
+                    className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.city ? 'border-red-500' : 'border-input'}`}
+                    required
+                    placeholder="Houston"
+                  />
+                  {fieldErrors.city && <p className="text-xs text-red-500 mt-1">{fieldErrors.city}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">State</label>
+                  <input
+                    type="text"
+                    value={stateName}
+                    onChange={(e) => {
+                      setStateName(e.target.value.toUpperCase());
+                      if (fieldErrors.stateName) setFieldErrors(prev => ({ ...prev, stateName: "" }));
+                    }}
+                    onBlur={() => { if (!stateName.trim()) setFieldErrors(prev => ({ ...prev, stateName: "State is required" })); }}
+                    className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.stateName ? 'border-red-500' : 'border-input'}`}
+                    required
+                    placeholder="TX"
+                    maxLength={2}
+                  />
+                  {fieldErrors.stateName && <p className="text-xs text-red-500 mt-1">{fieldErrors.stateName}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">Zip Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={zipCode}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 5);
+                      setZipCode(digitsOnly);
+                      if (fieldErrors.zipCode) setFieldErrors(prev => ({ ...prev, zipCode: "" }));
+                    }}
+                    onBlur={() => {
+                      if (!zipCode.trim()) setFieldErrors(prev => ({ ...prev, zipCode: "Zip code is required" }));
+                      else if (!/^\d{5}$/.test(zipCode.trim())) setFieldErrors(prev => ({ ...prev, zipCode: "Zip code must be 5 digits" }));
+                    }}
+                    className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${fieldErrors.zipCode ? 'border-red-500' : 'border-input'}`}
+                    required
+                    placeholder="77001"
+                    maxLength={5}
+                  />
+                  {fieldErrors.zipCode && <p className="text-xs text-red-500 mt-1">{fieldErrors.zipCode}</p>}
                 </div>
               </div>
 
@@ -427,31 +547,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Create Profile as:</label>
-                <div className="flex gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setRole("Contractor")}
-                    className={`flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors ${role === "Contractor"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                      }`}
-                  >
-                    Contractor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("HomeOwner")}
-                    className={`flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors ${role === "HomeOwner"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                      }`}
-                  >
-                    Home Owner
-                  </button>
-                </div>
-              </div>
+
 
               {error && <div className="text-sm text-red-500 font-medium">{error}</div>}
               <Button type="submit" className="w-full bg-[#17315f] hover:bg-[#1a3a73] text-white">

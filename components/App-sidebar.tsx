@@ -17,6 +17,7 @@ import {
   FileText,
   Users,
   Building,
+  MessageSquare,
 } from "@/components/Icons";
 import { useUserRole } from "@/lib/auth/useUserRole";
 import {

@@ -1,7 +1,6 @@
 "use client";
 
 
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { PanelLeft } from "@/components/Icons";
 import { Button } from "@/components/ui/Button";
 import NavNotifications from "@/components/Nav-notifications";
@@ -69,7 +68,6 @@ export default function TopBar() {
       >
         <CustomSidebarTrigger />
         <div className="flex items-center gap-4">
-          <ThemeToggle className={cn("px-8")} />
           <NavUser />
         </div>
       </div>

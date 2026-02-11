@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
+import { fetchAuthSession, fetchUserAttributes, getCurrentUser } from "aws-amplify/auth";
 
 export type UserRole = "SuperAdmin" | "Admin" | "IncidentReporter" | "HomeOwner" | null;
 
@@ -15,6 +15,7 @@ interface UseUserRoleReturn {
   userEmail: string | null;
   companyId: string | null;
   companyName: string | null;
+  username: string | null;
 }
 
 export function useUserRole(): UseUserRoleReturn {
@@ -23,12 +24,18 @@ export function useUserRole(): UseUserRoleReturn {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     async function getUserRole() {
       try {
         const session = await fetchAuthSession();
         const attributes = await fetchUserAttributes();
+        const currentUser = await getCurrentUser().catch(() => null);
+
+        if (currentUser) {
+          setUsername(currentUser.username);
+        }
 
         setUserEmail(attributes.email || null);
         setCompanyId(attributes["custom:companyId"] || null);
@@ -75,5 +82,6 @@ export function useUserRole(): UseUserRoleReturn {
     userEmail,
     companyId,
     companyName,
+    username,
   };
 }

@@ -3,9 +3,11 @@
 import {
   LogOut,
   Pencil1Icon,
+  RadixIcons,
 } from "@/components/Icons";
 import { useState, useEffect } from "react";
 import { signOut, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
+import { useTheme } from "next-themes";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
 import {
@@ -25,6 +27,7 @@ import { EditProfileModal } from "@/components/forms/EditProfileModal";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
+  const { theme, setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
@@ -34,22 +37,33 @@ export function NavUser() {
     family_name: "",
     phone_number: "",
     email: "",
+    address: "",
     initials: "",
   });
 
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true);
+
+      // Preserve theme preference before clearing storage
+      const savedTheme = localStorage.getItem("theme");
+
       await signOut({ global: true });
       localStorage.clear();
       sessionStorage.clear();
-      window.location.href = "/Login";
+
+      // Restore theme preference so the login page doesn't flash dark mode
+      if (savedTheme) {
+        localStorage.setItem("theme", savedTheme);
+      }
+
+      window.location.href = "/";
       setTimeout(() => {
-        window.location.replace("/Login");
+        window.location.replace("/");
       }, 100);
     } catch (error) {
       console.error("Error signing out:", error);
-      window.location.href = "/Login";
+      window.location.href = "/";
     }
   };
 
@@ -62,6 +76,7 @@ export function NavUser() {
       const family_name = attributes.family_name || "";
       const email = attributes.email || "";
       const phone_number = attributes.phone_number || "";
+      const address = attributes.address || "";
 
       // Generate initials
       let initials = "";
@@ -81,6 +96,7 @@ export function NavUser() {
         family_name,
         email,
         phone_number,
+        address,
         initials,
       });
     } catch (error) {
@@ -169,6 +185,21 @@ export function NavUser() {
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setTheme(theme === "dark" ? "light" : "dark");
+                }}
+              >
+                {theme === "dark" ? (
+                  <RadixIcons.SunIcon className="mr-2 h-4 w-4" />
+                ) : (
+                  <RadixIcons.MoonIcon className="mr-2 h-4 w-4" />
+                )}
+                <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                className="cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                 onClick={handleSignOut}
                 disabled={isSigningOut}
               >
@@ -188,6 +219,7 @@ export function NavUser() {
           family_name: userData.family_name,
           phone_number: userData.phone_number,
           email: userData.email,
+          address: userData.address || "",
         }}
       />
     </SidebarMenu>

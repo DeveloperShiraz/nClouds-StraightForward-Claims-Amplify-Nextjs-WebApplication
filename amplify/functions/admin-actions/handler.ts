@@ -105,6 +105,10 @@ export const handler = async (event: any) => {
                     groups: groups,
                     companyId: getAttr("custom:companyId"),
                     companyName: getAttr("custom:companyName"),
+                    given_name: getAttr("given_name") || "",
+                    family_name: getAttr("family_name") || "",
+                    phone_number: getAttr("phone_number") || "",
+                    address: getAttr("address") || "",
                 };
             }));
 

@@ -27,7 +27,7 @@ export default function DashboardLayout({
         if (!hasTokens) {
           // Immediate redirect - don't even set state
           console.log("Not authenticated, redirecting to login");
-          window.location.replace("/Login");
+          window.location.replace("/");
           return; // Don't continue execution
         }
 
@@ -37,7 +37,7 @@ export default function DashboardLayout({
       } catch (error) {
         console.error("Auth check failed:", error);
         // Use replace for cleaner navigation history
-        window.location.replace("/Login");
+        window.location.replace("/");
       }
     })();
   }, []);

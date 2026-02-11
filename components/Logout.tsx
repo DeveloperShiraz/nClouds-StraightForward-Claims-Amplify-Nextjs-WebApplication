@@ -82,7 +82,7 @@ const Logout = () => {
       });
 
       // Navigate to login page
-      window.location.href = "/Login";
+      window.location.href = "/";
     } catch (error) {
       console.error("Error signing out:", error);
 
@@ -91,7 +91,7 @@ const Logout = () => {
         localStorage.setItem(key, value);
       });
 
-      window.location.href = "/Login";
+      window.location.href = "/";
     } finally {
       setIsLoading(false);
     }

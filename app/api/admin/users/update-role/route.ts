@@ -5,6 +5,7 @@ import {
   AdminRemoveUserFromGroupCommand,
   AdminAddUserToGroupCommand,
   AdminListGroupsForUserCommand,
+  CreateGroupCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 const USER_POOL_ID = getUserPoolId();
@@ -60,14 +61,34 @@ export async function POST(request: NextRequest) {
       await client.send(removeCommand);
     }
 
-    // Add user to new group
-    const addCommand = new AdminAddUserToGroupCommand({
-      UserPoolId: USER_POOL_ID,
-      Username: username,
-      GroupName: newRole,
-    });
+    // Add user to new group (auto-create group if it doesn't exist)
+    try {
+      const addCommand = new AdminAddUserToGroupCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: username,
+        GroupName: newRole,
+      });
+      await client.send(addCommand);
+    } catch (addError: any) {
+      if (addError.name === "ResourceNotFoundException" || addError.message?.includes("Group not found")) {
+        // Group doesn't exist yet — create it first, then add user
+        const createGroupCommand = new CreateGroupCommand({
+          UserPoolId: USER_POOL_ID,
+          GroupName: newRole,
+          Description: `${newRole} role group`,
+        });
+        await client.send(createGroupCommand);
 
-    await client.send(addCommand);
+        const retryAddCommand = new AdminAddUserToGroupCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: username,
+          GroupName: newRole,
+        });
+        await client.send(retryAddCommand);
+      } else {
+        throw addError;
+      }
+    }
 
     return NextResponse.json({
       success: true,

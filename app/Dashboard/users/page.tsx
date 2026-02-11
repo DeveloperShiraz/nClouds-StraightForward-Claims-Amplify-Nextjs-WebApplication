@@ -12,6 +12,8 @@ import {
   Trash2,
   AlertCircle,
   Filter,
+  Settings,
+  Pencil1Icon,
 } from "@/components/Icons";
 import {
   Select,
@@ -24,6 +26,7 @@ import { useUserRole } from "@/lib/auth/useUserRole";
 import { useRouter } from "next/navigation";
 import { AddUserDialog } from "@/components/AddUserDialog";
 import { EditUserRoleDialog } from "@/components/EditUserRoleDialog";
+import { EditUserDialog } from "@/components/EditUserDialog";
 import { Badge } from "@/components/ui/Badge";
 import { useCompany } from "@/contexts/CompanyContext";
 
@@ -37,6 +40,10 @@ interface User {
   groups: string[];
   companyId?: string | null;
   companyName?: string | null;
+  given_name?: string;
+  family_name?: string;
+  phone_number?: string;
+  address?: string;
 }
 
 type RoleFilter = "all" | "Admin" | "IncidentReporter" | "HomeOwner";
@@ -60,6 +67,10 @@ export default function UsersPage() {
     email: string;
     currentRole: string;
   } | null>(null);
+
+  // Edit user profile dialog state
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
 
   // Redirect if not admin or superadmin
   useEffect(() => {
@@ -145,6 +156,11 @@ export default function UsersPage() {
     setEditRoleDialogOpen(true);
   };
 
+  const handleEditUser = (user: User) => {
+    setSelectedUserForEdit(user);
+    setEditUserDialogOpen(true);
+  };
+
   // Filter users based on role filter and company filter
   const filteredUsers = users.filter((user) => {
     // Hide SuperAdmin users from non-SuperAdmin users
@@ -188,11 +204,12 @@ export default function UsersPage() {
     });
 
   const adminCount = visibleUsers.filter((u) => u.groups.includes("Admin")).length;
-  const incidentReporterCount = visibleUsers.filter((u) =>
-    u.groups.includes("IncidentReporter")
-  ).length;
+
   const customerCount = visibleUsers.filter((u) =>
     u.groups.includes("HomeOwner")
+  ).length;
+  const incidentReporterCount = visibleUsers.filter((u) =>
+    u.groups.includes("IncidentReporter")
   ).length;
 
   if (roleLoading) {
@@ -258,6 +275,27 @@ export default function UsersPage() {
           )}
         </button>
 
+
+
+        <button
+          onClick={() =>
+            setRoleFilter(roleFilter === "HomeOwner" ? "all" : "HomeOwner")
+          }
+          className={`bg-card text-card-foreground rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "HomeOwner"
+            ? "border-green-600 ring-2 ring-green-600"
+            : "border-gray-200 dark:border-gray-700 hover:border-green-300"
+            }`}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <UsersIcon className="w-5 h-5 text-green-600" />
+            <h3 className="text-sm font-medium text-muted-foreground">Home Owners</h3>
+          </div>
+          <p className="text-3xl font-bold">{customerCount}</p>
+          {roleFilter === "HomeOwner" && (
+            <p className="text-xs text-green-600 mt-2">Filtering by this role</p>
+          )}
+        </button>
+
         <button
           onClick={() =>
             setRoleFilter(
@@ -280,25 +318,6 @@ export default function UsersPage() {
           </p>
           {roleFilter === "IncidentReporter" && (
             <p className="text-xs text-blue-600 mt-2">Filtering by this role</p>
-          )}
-        </button>
-
-        <button
-          onClick={() =>
-            setRoleFilter(roleFilter === "HomeOwner" ? "all" : "HomeOwner")
-          }
-          className={`bg-card text-card-foreground rounded-lg shadow p-6 border transition-all text-left ${roleFilter === "HomeOwner"
-            ? "border-green-600 ring-2 ring-green-600"
-            : "border-gray-200 dark:border-gray-700 hover:border-green-300"
-            }`}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <UsersIcon className="w-5 h-5 text-green-600" />
-            <h3 className="text-sm font-medium text-muted-foreground">Home Owners</h3>
-          </div>
-          <p className="text-3xl font-bold">{customerCount}</p>
-          {roleFilter === "HomeOwner" && (
-            <p className="text-xs text-green-600 mt-2">Filtering by this role</p>
           )}
         </button>
       </div>
@@ -402,7 +421,7 @@ export default function UsersPage() {
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
                       Created
                     </th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
                   </tr>
@@ -494,25 +513,39 @@ export default function UsersPage() {
                       <td className="py-3 px-4 text-sm text-gray-600">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handleDeleteUser(user.username, user.email)
-                          }
-                          disabled={
-                            deletingUser === user.username ||
-                            user.email === userEmail
-                          }
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          {deletingUser === user.username ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          {/* Edit Button (SuperAdmin only) */}
+                          {isSuperAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditUser(user)}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              title="Edit User Profile"
+                            >
+                              <Pencil1Icon className="w-4 h-4" />
+                            </Button>
                           )}
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleDeleteUser(user.username, user.email)
+                            }
+                            disabled={
+                              deletingUser === user.username ||
+                              user.email === userEmail
+                            }
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deletingUser === user.username ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -541,6 +574,17 @@ export default function UsersPage() {
           onRoleUpdated={fetchUsers}
         />
       )}
+
+      {/* Edit User Profile Dialog */}
+      <EditUserDialog
+        open={editUserDialogOpen}
+        onOpenChange={setEditUserDialogOpen}
+        user={selectedUserForEdit}
+        onUserUpdated={() => {
+          fetchUsers();
+          // Optional: Add toast success here
+        }}
+      />
     </div>
   );
 }

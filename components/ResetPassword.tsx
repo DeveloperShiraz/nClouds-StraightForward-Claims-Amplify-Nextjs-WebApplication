@@ -47,7 +47,7 @@ export function ResetPassword({ onCancel }: { onCancel: () => void }) {
       });
       setStep("SET_PASSWORD");
       // Redirect to login after successful password reset
-      window.location.href = "/Login";
+      window.location.href = "/";
     } catch (err) {
       console.error("Error verifying code:", err);
       setError(err instanceof Error ? err.message : "Failed to verify code");

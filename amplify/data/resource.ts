@@ -100,6 +100,10 @@ const schema = a.schema({
     groups: a.string().array(),
     companyId: a.string(),
     companyName: a.string(),
+    given_name: a.string(),
+    family_name: a.string(),
+    phone_number: a.string(),
+    address: a.string(),
   }),
 
   // Custom queries to list and create users using the adminActions function

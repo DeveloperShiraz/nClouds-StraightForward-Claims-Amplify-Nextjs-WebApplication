@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
       groups: user.groups || [],
       companyId: user.companyId || null,
       companyName: user.companyName || null,
+      given_name: user.given_name || "",
+      family_name: user.family_name || "",
+      phone_number: user.phone_number || "",
+      address: user.address || "",
     }));
 
     return NextResponse.json({ users: formattedUsers });

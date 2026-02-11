@@ -32,6 +32,12 @@ const profileSchema = z.object({
     phone_number: z.string()
         .min(14, { message: "Phone number is invalid. Format: (XXX) XXX-XXXX" })
         .max(14, { message: "Phone number is invalid. Format: (XXX) XXX-XXXX" }),
+    email: z.string().email({ message: "Invalid email address." }),
+    address: z.string().min(1, { message: "Address is required." }),
+    apartment: z.string().optional(),
+    city: z.string().min(1, { message: "City is required." }),
+    state: z.string().min(1, { message: "State is required." }).max(2, { message: "Use 2-letter state code." }),
+    zipCode: z.string().regex(/^\d{5}$/, { message: "Zip code must be 5 digits." }),
 });
 
 // Password Schema
@@ -53,7 +59,37 @@ interface EditProfileModalProps {
         family_name: string;
         phone_number: string;
         email: string;
+        address: string;
     };
+}
+
+// Parse a combined address string like "123 Main St, Apt 4B, Houston, TX 77001"
+function parseAddress(fullAddress: string) {
+    if (!fullAddress) return { street: "", apartment: "", city: "", state: "", zip: "" };
+
+    // Split by commas
+    const parts = fullAddress.split(",").map(p => p.trim());
+
+    if (parts.length >= 4) {
+        // Format: "street, apt, city, state zip"
+        const stateZip = parts[parts.length - 1].trim().split(/\s+/);
+        const zip = stateZip.pop() || "";
+        const state = stateZip.join(" ");
+        const city = parts[parts.length - 2].trim();
+        const apartment = parts.slice(1, parts.length - 2).join(", ");
+        const street = parts[0];
+        return { street, apartment, city, state, zip };
+    } else if (parts.length === 3) {
+        // Format: "street, city, state zip"
+        const stateZip = parts[2].trim().split(/\s+/);
+        const zip = stateZip.pop() || "";
+        const state = stateZip.join(" ");
+        const city = parts[1].trim();
+        const street = parts[0];
+        return { street, apartment: "", city, state, zip };
+    } else {
+        return { street: fullAddress, apartment: "", city: "", state: "", zip: "" };
+    }
 }
 
 export function EditProfileModal({
@@ -72,6 +108,12 @@ export function EditProfileModal({
             given_name: "",
             family_name: "",
             phone_number: "",
+            email: "",
+            address: "",
+            apartment: "",
+            city: "",
+            state: "",
+            zipCode: "",
         },
     });
 
@@ -112,10 +154,19 @@ export function EditProfileModal({
             // Apply formatting
             formattedPhone = formatPhoneNumber(formattedPhone);
 
+            // Parse the combined address string
+            const parsed = parseAddress(userData.address);
+
             profileForm.reset({
                 given_name: userData.given_name,
                 family_name: userData.family_name,
                 phone_number: formattedPhone,
+                email: userData.email,
+                address: parsed.street,
+                apartment: parsed.apartment,
+                city: parsed.city,
+                state: parsed.state,
+                zipCode: parsed.zip,
             });
             passwordForm.reset({
                 currentPassword: "",
@@ -132,11 +183,15 @@ export function EditProfileModal({
             const rawPhone = values.phone_number.replace(/\D/g, '');
             const formattedForCognito = `+1${rawPhone}`;
 
+            // Combine address into a single string for Cognito
+            const fullAddress = `${values.address.trim()}${values.apartment?.trim() ? `, ${values.apartment.trim()}` : ''}, ${values.city.trim()}, ${values.state.trim()} ${values.zipCode.trim()}`;
+
             await updateUserAttributes({
                 userAttributes: {
                     given_name: values.given_name,
                     family_name: values.family_name,
                     phone_number: formattedForCognito,
+                    address: fullAddress,
                 },
             });
 
@@ -188,7 +243,7 @@ export function EditProfileModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>Edit Profile</DialogTitle>
                     <DialogDescription>
@@ -203,56 +258,46 @@ export function EditProfileModal({
                     </TabsList>
 
                     <TabsContent value="profile" className="space-y-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <label className="text-right text-sm font-medium">Email</label>
-                            <Input
-                                value={userData.email}
-                                disabled
-                                className="col-span-3 bg-muted"
-                            />
-                        </div>
-
                         <Form {...profileForm}>
                             <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                                <FormField
-                                    control={profileForm.control}
-                                    name="given_name"
-                                    render={({ field }) => (
-                                        <FormItem className="grid grid-cols-4 items-center gap-4 space-y-0">
-                                            <FormLabel className="text-right">First Name</FormLabel>
-                                            <div className="col-span-3">
+                                {/* Row 1: First Name | Last Name */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="given_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>First Name</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} />
+                                                    <Input placeholder="John" {...field} />
                                                 </FormControl>
-                                                <FormMessage className="mt-1" />
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={profileForm.control}
-                                    name="family_name"
-                                    render={({ field }) => (
-                                        <FormItem className="grid grid-cols-4 items-center gap-4 space-y-0">
-                                            <FormLabel className="text-right">Last Name</FormLabel>
-                                            <div className="col-span-3">
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="family_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Last Name</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} />
+                                                    <Input placeholder="Doe" {...field} />
                                                 </FormControl>
-                                                <FormMessage className="mt-1" />
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
-                                <FormField
-                                    control={profileForm.control}
-                                    name="phone_number"
-                                    render={({ field }) => (
-                                        <FormItem className="grid grid-cols-4 items-center gap-4 space-y-0">
-                                            <FormLabel className="text-right">Phone</FormLabel>
-                                            <div className="col-span-3">
+                                {/* Row 2: Phone Number | Email */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="phone_number"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Phone Number</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         {...field}
@@ -264,11 +309,111 @@ export function EditProfileModal({
                                                         maxLength={14}
                                                     />
                                                 </FormControl>
-                                                <FormMessage className="mt-1" />
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} disabled className="bg-muted" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                {/* Row 3: Address | Apartment, Suite (Optional) */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="address"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Address</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="123 Main St" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="apartment"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Apartment, Suite <span className="text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Apt 4B" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                {/* Row 4: City | State | Zip Code */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="city"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>City</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Houston" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="state"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>State</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="TX"
+                                                        maxLength={2}
+                                                        {...field}
+                                                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={profileForm.control}
+                                        name="zipCode"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Zip Code</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="77001"
+                                                        maxLength={5}
+                                                        inputMode="numeric"
+                                                        {...field}
+                                                        onChange={(e) => {
+                                                            const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 5);
+                                                            field.onChange(digitsOnly);
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
                                 <div className="flex justify-end gap-3 pt-4">
                                     <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
