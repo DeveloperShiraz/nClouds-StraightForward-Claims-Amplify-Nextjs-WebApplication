@@ -1048,10 +1048,10 @@ export default function ReportsPage() {
 
       {editingReport && (
         <EditIncidentReportModal
-          report={editingReport}
+          reportId={editingReport.id}
           isOpen={!!editingReport}
           onClose={handleCloseModal}
-          onSuccess={handleEditSuccess}
+          onUpdate={handleEditSuccess}
         />
       )}
 

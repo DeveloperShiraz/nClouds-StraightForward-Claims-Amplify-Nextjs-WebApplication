@@ -117,7 +117,7 @@ export function EditIncidentReportModal({
         if (errors) throw new Error(errors[0].message);
         if (!report) throw new Error("Report not found");
 
-        const parsedPhotos = report.photos ? JSON.parse(report.photos as string) : [];
+        const parsedPhotos = report.photoUrls?.filter((url): url is string => !!url) || [];
         setExistingPhotos(parsedPhotos);
 
         // Fetch signed URLs for existing photos
@@ -128,6 +128,17 @@ export function EditIncidentReportModal({
           })
         );
         setPhotoSignedUrls(signedUrls);
+
+        let weatherData: any = {};
+        try {
+          if (report.weatherReport) {
+            weatherData = typeof report.weatherReport === 'string'
+              ? JSON.parse(report.weatherReport)
+              : report.weatherReport;
+          }
+        } catch (e) {
+          console.error("Failed to parse weather report", e);
+        }
 
         form.reset({
           firstName: report.firstName || "",
@@ -142,9 +153,9 @@ export function EditIncidentReportModal({
           incidentDate: report.incidentDate ? new Date(report.incidentDate) : undefined,
           description: report.description || "",
           shingleExposure: report.shingleExposure?.toString() || "",
-          hailSize: report.hailSize?.toString() || "",
-          weatherDate: report.weatherDate ? new Date(report.weatherDate) : undefined,
-          weatherDescription: report.weatherDescription || "",
+          hailSize: weatherData.reported_hail_size_inches?.toString() || "",
+          weatherDate: weatherData.weather_date ? new Date(weatherData.weather_date) : undefined,
+          weatherDescription: weatherData.weather_description || "",
           status: (report.status as "submitted" | "in_review" | "resolved") || "submitted",
           claimNumber: report.claimNumber || "",
         });
@@ -244,13 +255,15 @@ export function EditIncidentReportModal({
         zip: values.zip,
         incidentDate: values.incidentDate.toISOString().split("T")[0],
         description: values.description,
-        photos: JSON.stringify(finalPhotos),
+        photoUrls: finalPhotos,
         shingleExposure: values.shingleExposure ? parseFloat(values.shingleExposure) : null,
-        hailSize: values.hailSize ? parseFloat(values.hailSize) : null,
-        weatherDate: values.weatherDate
-          ? values.weatherDate.toISOString().split("T")[0]
-          : null,
-        weatherDescription: values.weatherDescription,
+        weatherReport: JSON.stringify({
+          reported_hail_size_inches: values.hailSize ? parseFloat(values.hailSize) : undefined,
+          weather_date: values.weatherDate
+            ? values.weatherDate.toISOString().split("T")[0]
+            : undefined,
+          weather_description: values.weatherDescription,
+        }),
         status: values.status,
         claimNumber: values.claimNumber,
       });
