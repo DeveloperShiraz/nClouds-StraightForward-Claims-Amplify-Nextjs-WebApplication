@@ -8,7 +8,7 @@
  * In local development, credentials are read from environment variables.
  */
 
-import outputs from "@/amplify_outputs.json";
+import { getAmplifyRuntimeConfig } from "@/lib/amplify-runtime-config";
 
 /**
  * AWS Configuration Helper
@@ -22,19 +22,23 @@ import outputs from "@/amplify_outputs.json";
  */
 
 export const getAWSRegion = () => {
-  return outputs.auth?.aws_region || process.env.NEXT_PUBLIC_AWS_REGION || "us-east-1";
+  const config = getAmplifyRuntimeConfig();
+  return config.auth?.aws_region || process.env.NEXT_PUBLIC_AWS_REGION || "us-east-1";
 };
 
 export const getUserPoolId = () => {
-  return outputs.auth?.user_pool_id || process.env.AMPLIFY_AUTH_USERPOOL_ID || "";
+  const config = getAmplifyRuntimeConfig();
+  return config.auth?.user_pool_id || process.env.AMPLIFY_AUTH_USERPOOL_ID || "";
 };
 
 export const getAdminActionsFunctionName = () => {
-  return (outputs as any).custom?.adminActionsFunctionName || process.env.ADMIN_ACTIONS_FUNCTION_NAME || "";
+  const config = getAmplifyRuntimeConfig();
+  return (config as any).custom?.adminActionsFunctionName || process.env.ADMIN_ACTIONS_FUNCTION_NAME || "";
 };
 
 export const getDebugFlags = () => {
-  return (outputs as any).custom || {};
+  const config = getAmplifyRuntimeConfig();
+  return (config as any).custom || {};
 };
 
 export const getAWSCredentials = () => {
@@ -98,5 +102,6 @@ export const getIncidentReportTableName = () => {
  * Get S3 bucket name for photo uploads
  */
 export const getS3BucketName = () => {
-  return (outputs.storage as any)?.bucket_name || process.env.S3_BUCKET_NAME || "";
+  const config = getAmplifyRuntimeConfig();
+  return (config.storage as any)?.bucket_name || process.env.S3_BUCKET_NAME || "";
 };

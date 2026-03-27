@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { fetchAuthSession } from "aws-amplify/auth/server";
 import { runWithAmplifyServerContext } from "@/lib/amplify-server-utils";
-import outputs from "@/amplify_outputs.json";
+import { getIncidentStorageBucketName, getAmplifyRuntimeConfig } from "@/lib/amplify-runtime-config";
 
 export async function POST(request: NextRequest) {
   const response = NextResponse.next();
@@ -27,8 +27,9 @@ export async function POST(request: NextRequest) {
         console.log("✅ Credentials obtained from session");
 
         // 2. Initialize S3 client with these credentials
-        const bucket = outputs.storage.bucket_name;
-        const region = outputs.storage.aws_region;
+        const runtimeConfig = getAmplifyRuntimeConfig();
+        const bucket = getIncidentStorageBucketName();
+        const region = runtimeConfig.storage?.aws_region || runtimeConfig.auth?.aws_region || "us-east-1";
 
         const s3Client = new S3Client({
           region,

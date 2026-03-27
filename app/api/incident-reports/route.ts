@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
+import { getAmplifyDataApiKey, getAmplifyDataEndpoint } from "@/lib/amplify-runtime-config";
 
 export async function GET(request: NextRequest) {
   try {
     console.log("Fetching incident reports from Amplify Data (API Key auth)...");
 
-    // Read AppSync endpoint and API key from amplify outputs
-    const amplifyOutputs = require("@/amplify_outputs.json");
-    const appsyncUrl = amplifyOutputs.data.url;
-    const apiKey = amplifyOutputs.data.api_key;
+    const appsyncUrl = getAmplifyDataEndpoint();
+    const apiKey = getAmplifyDataApiKey();
 
     const listQuery = `
       query ListIncidentReports {

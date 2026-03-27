@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
 import { fetchAuthSession } from "aws-amplify/auth/server";
-import outputs from "@/amplify_outputs.json";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
+import { getAmplifyDataEndpoint, getAmplifyRuntimeConfig, getIncidentStorageBucketName } from "@/lib/amplify-runtime-config";
 
 const AI_LAMBDA_URL = "https://xkhwrtjkwriyfonzpjdhuvmdky0ufdxf.lambda-url.us-east-1.on.aws/";
 
@@ -72,11 +70,12 @@ export async function POST(
                 // We'll use the AWS SDK to invoke it asynchronously (InvocationType: 'Event')
                 const { LambdaClient, InvokeCommand } = await import("@aws-sdk/client-lambda");
 
-                // Get function name from custom outputs
-                console.log(`🔧 Looking for function name in outputs...`);
-                const functionName = (outputs as any).custom?.analyzeReportFunctionName;
+                // Get function name from runtime config so production can override local outputs
+                console.log(`🔧 Looking for function name in runtime config...`);
+                const runtimeConfig = getAmplifyRuntimeConfig();
+                const functionName = (runtimeConfig as any).custom?.analyzeReportFunctionName;
                 if (!functionName) {
-                    console.error("❌ Function name not found in outputs:", outputs);
+                    console.error("❌ Function name not found in runtime config:", runtimeConfig);
                     throw new Error("Analyze function name not found in configuration. Please redeploy the backend.");
                 }
                 console.log(`✅ Found function: ${functionName}`);
@@ -108,9 +107,9 @@ export async function POST(
 
                 const payload = {
                     reportId: id,
-                    bucket: outputs.storage.bucket_name,
+                    bucket: getIncidentStorageBucketName(),
                     region,
-                    apiEndpoint: (outputs as any).data?.url
+                    apiEndpoint: getAmplifyDataEndpoint()
                 };
                 console.log(`📤 Invoking Lambda with payload:`, payload);
 

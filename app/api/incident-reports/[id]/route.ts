@@ -6,8 +6,8 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from "@aws-sdk/client-s3";
-import outputs from "@/amplify_outputs.json";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
+import { getIncidentStorageBucketName } from "@/lib/amplify-runtime-config";
 
 type AIAnalysisPayload = {
   local_output_path?: string;
@@ -305,7 +305,7 @@ export async function DELETE(
       try {
         const { id } = await params;
         const client = createApiClient(contextSpec);
-        const incidentBucket = outputs.storage?.bucket_name || process.env.AMPLIFY_STORAGE_BUCKET_NAME;
+        const incidentBucket = getIncidentStorageBucketName();
 
         if (!incidentBucket) {
           return NextResponse.json(
