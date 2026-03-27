@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
 import { fetchAuthSession } from "aws-amplify/auth/server";
-import { getAmplifyDataEndpoint, getAmplifyRuntimeConfig, getIncidentStorageBucketName } from "@/lib/amplify-runtime-config";
+import { getAmplifyDataEndpoint, getAnalyzeReportFunctionName, getIncidentStorageBucketName } from "@/lib/amplify-runtime-config";
 
 const AI_LAMBDA_URL = "https://xkhwrtjkwriyfonzpjdhuvmdky0ufdxf.lambda-url.us-east-1.on.aws/";
 
@@ -72,10 +72,9 @@ export async function POST(
 
                 // Get function name from runtime config so production can override local outputs
                 console.log(`🔧 Looking for function name in runtime config...`);
-                const runtimeConfig = getAmplifyRuntimeConfig();
-                const functionName = (runtimeConfig as any).custom?.analyzeReportFunctionName;
+                const functionName = getAnalyzeReportFunctionName();
                 if (!functionName) {
-                    console.error("❌ Function name not found in runtime config:", runtimeConfig);
+                    console.error("❌ Function name not found in runtime config");
                     throw new Error("Analyze function name not found in configuration. Please redeploy the backend.");
                 }
                 console.log(`✅ Found function: ${functionName}`);

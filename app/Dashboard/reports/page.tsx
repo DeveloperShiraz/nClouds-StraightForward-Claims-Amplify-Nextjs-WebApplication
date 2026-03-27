@@ -316,7 +316,14 @@ export default function ReportsPage() {
         method: "DELETE",
       });
 
-      const data = await response.json();
+      const rawBody = await response.text();
+      let data: any = null;
+
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch {
+        data = { error: rawBody || "Unexpected server response" };
+      }
 
       if (response.ok) {
         console.log("✅ Successfully deleted incident report from database");

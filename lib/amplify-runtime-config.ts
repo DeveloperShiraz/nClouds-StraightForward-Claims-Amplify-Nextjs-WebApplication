@@ -38,6 +38,10 @@ export function getAmplifyRuntimeConfig(): AmplifyOutputs {
     "NEXT_PUBLIC_AMPLIFY_DATA_API_KEY",
     "AMPLIFY_DATA_API_KEY",
   );
+  const analyzeReportFunctionName = getEnvValue(
+    "NEXT_PUBLIC_ANALYZE_REPORT_FUNCTION_NAME",
+    "ANALYZE_REPORT_FUNCTION_NAME",
+  );
 
   if (region) {
     if (config.auth) {
@@ -73,6 +77,10 @@ export function getAmplifyRuntimeConfig(): AmplifyOutputs {
     config.data.api_key = dataApiKey;
   }
 
+  if (analyzeReportFunctionName && config.custom && typeof config.custom === "object") {
+    (config.custom as Record<string, string>).analyzeReportFunctionName = analyzeReportFunctionName;
+  }
+
   return config;
 }
 
@@ -106,6 +114,17 @@ export function getAmplifyDataApiKey() {
       "AMPLIFY_DATA_API_KEY",
     ) ||
     getAmplifyRuntimeConfig().data?.api_key ||
+    ""
+  );
+}
+
+export function getAnalyzeReportFunctionName() {
+  return (
+    getEnvValue(
+      "NEXT_PUBLIC_ANALYZE_REPORT_FUNCTION_NAME",
+      "ANALYZE_REPORT_FUNCTION_NAME",
+    ) ||
+    (getAmplifyRuntimeConfig().custom as Record<string, string> | undefined)?.analyzeReportFunctionName ||
     ""
   );
 }
