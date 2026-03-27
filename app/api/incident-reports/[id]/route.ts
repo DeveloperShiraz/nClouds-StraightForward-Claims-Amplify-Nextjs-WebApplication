@@ -6,6 +6,7 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { fetchAuthSession } from "aws-amplify/auth/server";
 import { runWithAmplifyServerContext, createApiClient } from "@/lib/amplify-server-utils";
 import { getIncidentStorageBucketName } from "@/lib/amplify-runtime-config";
 
@@ -198,8 +199,26 @@ async function deleteBucketObjects(s3Client: S3Client, bucket: string, keys: str
   }
 
   const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
-  const versioning = await s3Client.send(new GetBucketVersioningCommand({ Bucket: bucket }));
-  const versioningEnabled = versioning.Status === "Enabled" || versioning.Status === "Suspended";
+  let versioningEnabled = false;
+
+  try {
+    const versioning = await s3Client.send(new GetBucketVersioningCommand({ Bucket: bucket }));
+    versioningEnabled = versioning.Status === "Enabled" || versioning.Status === "Suspended";
+  } catch (error: any) {
+    const errorCode = error?.name || error?.Code || error?.code;
+    const shouldFallbackToSimpleDelete = [
+      "AccessDenied",
+      "AccessDeniedException",
+      "NotImplemented",
+      "AllAccessDisabled",
+    ].includes(errorCode);
+
+    if (!shouldFallbackToSimpleDelete) {
+      throw error;
+    }
+
+    console.warn(`Falling back to non-versioned delete for ${bucket}: ${errorCode}`);
+  }
 
   if (versioningEnabled) {
     await deleteAllObjectVersions(s3Client, bucket, uniqueKeys);
@@ -306,6 +325,7 @@ export async function DELETE(
         const { id } = await params;
         const client = createApiClient(contextSpec);
         const incidentBucket = getIncidentStorageBucketName();
+        const session = await fetchAuthSession(contextSpec);
 
         if (!incidentBucket) {
           return NextResponse.json(
@@ -402,7 +422,16 @@ export async function DELETE(
           });
         });
 
-        const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
+        const s3Client = new S3Client({
+          region: process.env.AWS_REGION || "us-east-1",
+          credentials: session.credentials
+            ? {
+                accessKeyId: session.credentials.accessKeyId,
+                secretAccessKey: session.credentials.secretAccessKey,
+                sessionToken: session.credentials.sessionToken,
+              }
+            : undefined,
+        });
         const prefixKeys = await listKeysForPrefix(s3Client, incidentBucket, reportScopedPrefix);
         prefixKeys.forEach((key) => incidentBucketKeys.add(key));
 
