@@ -37,6 +37,115 @@ import {
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/auth/useUserRole";
 
+const MAX_FILES = 20;
+const MAX_AI_SAFE_IMAGE_BYTES = 3.5 * 1024 * 1024;
+const MAX_AI_SAFE_GIF_BYTES = Math.floor(5 * 1024 * 1024 * 0.75);
+const MAX_IMAGE_DIMENSION = 2200;
+const MIN_IMAGE_DIMENSION = 1200;
+const DEFAULT_JPEG_QUALITY = 0.88;
+const MIN_JPEG_QUALITY = 0.45;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function updateFileExtension(fileName: string, extension: string) {
+  const sanitizedExtension = extension.startsWith(".") ? extension : `.${extension}`;
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return `${fileName}${sanitizedExtension}`;
+  }
+  return `${fileName.slice(0, dotIndex)}${sanitizedExtension}`;
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error(`Unable to read ${file.name} as an image.`));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Image compression failed."));
+        return;
+      }
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+async function compressImageForAi(file: File) {
+  const image = await loadImage(file);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Image compression is not supported in this browser.");
+  }
+
+  let width = image.naturalWidth;
+  let height = image.naturalHeight;
+  const largestDimension = Math.max(width, height);
+
+  if (largestDimension > MAX_IMAGE_DIMENSION) {
+    const scale = MAX_IMAGE_DIMENSION / largestDimension;
+    width = Math.max(Math.round(width * scale), 1);
+    height = Math.max(Math.round(height * scale), 1);
+  }
+
+  let quality = DEFAULT_JPEG_QUALITY;
+  let attempt = 0;
+  let blob: Blob | null = null;
+
+  while (attempt < 8) {
+    canvas.width = width;
+    canvas.height = height;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    blob = await canvasToBlob(canvas, "image/jpeg", quality);
+    if (blob.size <= MAX_AI_SAFE_IMAGE_BYTES) {
+      break;
+    }
+
+    if (quality > MIN_JPEG_QUALITY) {
+      quality = Math.max(quality - 0.1, MIN_JPEG_QUALITY);
+    } else {
+      width = Math.max(Math.round(width * 0.85), MIN_IMAGE_DIMENSION);
+      height = Math.max(Math.round(height * 0.85), MIN_IMAGE_DIMENSION);
+    }
+
+    attempt += 1;
+  }
+
+  if (!blob || blob.size > MAX_AI_SAFE_IMAGE_BYTES) {
+    throw new Error(
+      `${file.name} is still larger than ${formatBytes(MAX_AI_SAFE_IMAGE_BYTES)} after compression. Please resize it before uploading.`
+    );
+  }
+
+  const compressedName = updateFileExtension(file.name, ".jpg");
+  return new File([blob], compressedName, {
+    type: "image/jpeg",
+    lastModified: file.lastModified,
+  });
+}
+
 // Form validation schema
 const formSchema = z.object({
   companyId: z.string().optional(), // For SuperAdmin company selection
@@ -110,6 +219,8 @@ type FormData = z.infer<typeof formSchema>;
 
 interface FileWithPreview extends File {
   preview: string;
+  originalSize: number;
+  wasCompressed: boolean;
 }
 
 interface IncidentReportFormProps {
@@ -135,14 +246,15 @@ export function IncidentReportForm({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [weatherDatePickerOpen, setWeatherDatePickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreparingFiles, setIsPreparingFiles] = useState(false);
   const [notification, setNotification] = useState<{
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'warning';
     message: string;
   } | null>(null);
   const [companies, setCompanies] = useState<Array<{ id: string, name: string }>>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
 
-  const showNotification = (type: 'success' | 'error', message: string) => {
+  const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000); // Auto-hide after 5 seconds
   };
@@ -233,6 +345,38 @@ export function IncidentReportForm({
     });
 
     return Promise.all(uploadPromises);
+  };
+
+  const revokePreview = (file?: FileWithPreview) => {
+    if (file?.preview) {
+      URL.revokeObjectURL(file.preview);
+    }
+  };
+
+  const prepareFileForUpload = async (file: File): Promise<FileWithPreview> => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      throw new Error(`${file.name} is not a supported image type.`);
+    }
+
+    let preparedFile = file;
+    let wasCompressed = false;
+
+    if (file.type === "image/gif" && file.size > MAX_AI_SAFE_GIF_BYTES) {
+      throw new Error(
+        `${file.name} is ${formatBytes(file.size)}. GIFs larger than ${formatBytes(MAX_AI_SAFE_GIF_BYTES)} are not supported by the AI pipeline.`
+      );
+    }
+
+    if (file.type !== "image/gif" && file.size > MAX_AI_SAFE_IMAGE_BYTES) {
+      preparedFile = await compressImageForAi(file);
+      wasCompressed = true;
+    }
+
+    return Object.assign(preparedFile, {
+      preview: URL.createObjectURL(preparedFile),
+      originalSize: file.size,
+      wasCompressed,
+    });
   };
 
   const onSubmit = async (data: FormData) => {
@@ -360,6 +504,7 @@ export function IncidentReportForm({
         showNotification('success', successMessage);
       }
 
+      files.forEach((file) => revokePreview(file));
       form.reset();
       setFiles([]);
     } catch (error: any) {
@@ -387,39 +532,62 @@ export function IncidentReportForm({
     }
   };
 
-  const handleFiles = (fileList: FileList) => {
-    const MAX_FILES = 20;
-    const remainingSlots = MAX_FILES - files.length;
-
-    if (remainingSlots <= 0) {
-      alert("Maximum limit of 20 images reached.");
+  const handleFiles = async (fileList: FileList) => {
+    if (isPreparingFiles) {
       return;
     }
 
-    const validFiles: FileWithPreview[] = [];
-    const filesArray = Array.from(fileList).slice(0, remainingSlots);
+    const remainingSlots = MAX_FILES - files.length;
 
-    if (fileList.length > remainingSlots) {
-      alert(`Only the first ${remainingSlots} valid files were added. Maximum limit is 20 images.`);
+    if (remainingSlots <= 0) {
+      showNotification("warning", `Maximum limit of ${MAX_FILES} images reached.`);
+      return;
     }
 
-    filesArray.forEach((file) => {
-      // Check file type: JPEG, PNG, GIF
-      const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-      if (allowedTypes.includes(file.type)) {
-        const fileWithPreview = Object.assign(file, {
-          preview: URL.createObjectURL(file),
-        });
-        validFiles.push(fileWithPreview);
-      }
-    });
+    const filesArray = Array.from(fileList).slice(0, remainingSlots);
+    const preparedFiles: FileWithPreview[] = [];
+    const rejectedFiles: string[] = [];
+    let compressedCount = 0;
 
-    setFiles((prev) => [...prev, ...validFiles]);
-    form.setValue("photos", [...files, ...validFiles]);
+    if (fileList.length > remainingSlots) {
+      showNotification("warning", `Only the first ${remainingSlots} files were processed. Maximum limit is ${MAX_FILES} images.`);
+    }
+
+    setIsPreparingFiles(true);
+
+    try {
+      for (const file of filesArray) {
+        try {
+          const preparedFile = await prepareFileForUpload(file);
+          preparedFiles.push(preparedFile);
+          if (preparedFile.wasCompressed) {
+            compressedCount += 1;
+          }
+        } catch (error: any) {
+          rejectedFiles.push(error?.message || `Unable to prepare ${file.name}.`);
+        }
+      }
+
+      const nextFiles = [...files, ...preparedFiles];
+      setFiles(nextFiles);
+      form.setValue("photos", nextFiles);
+
+      if (rejectedFiles.length > 0) {
+        showNotification("warning", rejectedFiles.join(" "));
+      } else if (compressedCount > 0) {
+        showNotification(
+          "success",
+          `Compressed ${compressedCount} oversized image${compressedCount === 1 ? "" : "s"} so the AI service can process them reliably.`
+        );
+      }
+    } finally {
+      setIsPreparingFiles(false);
+    }
   };
 
   const removeFile = (index: number) => {
     const newFiles = files.filter((_, i) => i !== index);
+    revokePreview(files[index]);
     setFiles(newFiles);
     form.setValue("photos", newFiles);
   };
@@ -455,11 +623,15 @@ export function IncidentReportForm({
             "fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border transition-all duration-300 ease-in-out",
             notification.type === 'success'
               ? "bg-green-50 border-green-200 text-green-800"
+              : notification.type === 'warning'
+                ? "bg-orange-50 border-orange-200 text-orange-800"
               : "bg-red-50 border-red-200 text-red-800"
           )}
         >
           {notification.type === 'success' ? (
             <CheckCircle className="h-5 w-5 text-green-600" />
+          ) : notification.type === 'warning' ? (
+            <AlertCircle className="h-5 w-5 text-orange-600" />
           ) : (
             <AlertCircle className="h-5 w-5 text-red-600" />
           )}
@@ -918,17 +1090,24 @@ export function IncidentReportForm({
                     multiple
                     accept=".jpg,.jpeg,.png,.gif"
                     className="hidden"
+                    disabled={isPreparingFiles}
                     onChange={(e) => {
                       if (e.target.files) {
                         handleFiles(e.target.files);
                       }
+                      e.currentTarget.value = "";
                     }}
                   />
                 </label>
               </p>
               <p className="text-xs text-muted-foreground">
-                *Note: We only accept .JPG, .PNG, .GIF file formats &bull; Max 20 images*
+                *Note: We only accept .JPG, .PNG, .GIF file formats &bull; Max 20 images &bull; Large photos are automatically compressed for AI analysis*
               </p>
+              {isPreparingFiles && (
+                <p className="mt-3 text-xs font-medium text-blue-600">
+                  Preparing images for upload...
+                </p>
+              )}
             </div>
 
             {/* File Previews */}
@@ -951,6 +1130,15 @@ export function IncidentReportForm({
                     <p className="text-xs text-muted-foreground mt-1 truncate">
                       {file.name}
                     </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatBytes(file.size)}
+                      {file.wasCompressed && ` from ${formatBytes(file.originalSize)}`}
+                    </p>
+                    {file.wasCompressed && (
+                      <p className="text-[11px] font-medium text-blue-600">
+                        Optimized for AI
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -958,8 +1146,8 @@ export function IncidentReportForm({
           </div>
 
           {/* Submit Button */}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Submitting..." : "Submit Report"}
+          <Button type="submit" className="w-full" disabled={isSubmitting || isPreparingFiles}>
+            {isPreparingFiles ? "Preparing Photos..." : isSubmitting ? "Submitting..." : "Submit Report"}
           </Button>
         </form>
       </Form>

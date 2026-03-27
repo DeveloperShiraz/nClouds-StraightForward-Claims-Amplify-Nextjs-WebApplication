@@ -1,7 +1,16 @@
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 
 const AI_LAMBDA_URL = "https://xkhwrtjkwriyfonzpjdhuvmdky0ufdxf.lambda-url.us-east-1.on.aws/";
+const BEDROCK_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_AI_SOURCE_IMAGE_BYTES = Math.floor(BEDROCK_MAX_IMAGE_BYTES * 0.75);
+
+function getErrorMessage(error: unknown) {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return String(error);
+}
 
 /**
  * Background worker to handle AI analysis without blocking the Next.js API route.
@@ -83,16 +92,132 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             evidence_bullets: [] as string[],
             fraud_signals: [] as string[],
             final_assessment: "",
-            peril_match: { match: "unknown", reason: "" },
-            all_local_paths: [] as string[]
+            peril_match: { reported_peril: "", match: "unknown", reason: "" },
+            all_local_paths: [] as string[],
+            total_images_uploaded: report.photoUrls.length,
+            total_images_attempted: 0,
+            total_images_analyzed: 0,
+            total_images_succeeded: 0,
+            total_images_failed: 0,
+            total_images_with_detections: 0,
+            copied_image_count: 0,
+            failed_images: [] as Array<{ path: string; stage: "preflight" | "analysis"; error: string }>,
+            processed_images: [] as Array<{
+                path: string;
+                status: "detected" | "no_detections" | "failed";
+                detection_count: number;
+                stage?: "preflight" | "analysis";
+                error?: string;
+                output_s3_uris?: string[];
+                local_output_paths?: string[];
+            }>,
+            copy_warnings: [] as Array<{ name: string; uri: string; error: string }>,
         };
 
         const uniqueAssessments = new Set<string>();
+        const s3Client = new S3Client({ region });
+        const updateQuery = `
+            mutation UpdateIncidentReport($input: UpdateIncidentReportInput!) {
+                updateIncidentReport(input: $input) {
+                    id
+                }
+            }
+        `;
+
+        const publishProgress = async (overrides: Record<string, unknown> = {}) => {
+            const progressPayload = {
+                ...aggregatedData,
+                status: "analyzing",
+                progress: {
+                    total_images: report.photoUrls.length,
+                    completed_images: aggregatedData.processed_images.length,
+                    current_image_index: Math.min(aggregatedData.processed_images.length + 1, report.photoUrls.length),
+                    percent_complete: report.photoUrls.length > 0
+                        ? Math.round((aggregatedData.processed_images.length / report.photoUrls.length) * 100)
+                        : 100,
+                },
+                ...overrides,
+            };
+
+            try {
+                await fetch(apiEndpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(apiKey ? { "x-api-key": apiKey } : {})
+                    },
+                    body: JSON.stringify({
+                        query: updateQuery,
+                        variables: {
+                            input: {
+                                id: reportId,
+                                aiAnalysis: JSON.stringify(progressPayload),
+                            }
+                        }
+                    })
+                });
+            } catch (error) {
+                console.error("Failed to publish AI progress update:", error);
+            }
+        };
+
+        const pushFailedImage = (path: string, stage: "preflight" | "analysis", error: string) => {
+            aggregatedData.total_images_failed += 1;
+            aggregatedData.failed_images.push({ path, stage, error });
+            aggregatedData.processed_images.push({
+                path,
+                stage,
+                status: "failed",
+                error,
+                detection_count: 0,
+            });
+        };
 
         console.log(`Processing ${report.photoUrls.length} images...`);
+        await publishProgress({
+            progress: {
+                total_images: report.photoUrls.length,
+                completed_images: 0,
+                current_image_index: 1,
+                current_image_path: report.photoUrls[0],
+                current_image_name: report.photoUrls[0]?.split("/").pop() || report.photoUrls[0],
+                percent_complete: 0,
+            }
+        });
 
         for (const [index, path] of report.photoUrls.entries()) {
             console.log(`Analyzing image ${index + 1}/${report.photoUrls.length}: ${path}`);
+            aggregatedData.total_images_attempted += 1;
+
+            try {
+                const sourceObject = await s3Client.send(new HeadObjectCommand({
+                    Bucket: bucket,
+                    Key: path,
+                }));
+                const sourceSize = sourceObject.ContentLength || 0;
+
+                if (sourceSize > MAX_AI_SOURCE_IMAGE_BYTES) {
+                    const sizeError = `Source image is ${sourceSize} bytes, which exceeds the current AI-safe limit of ${MAX_AI_SOURCE_IMAGE_BYTES} bytes before base64 encoding.`;
+                    console.error(`Skipping oversized image ${path}: ${sizeError}`);
+                    pushFailedImage(path, "preflight", sizeError);
+                    continue;
+                }
+            } catch (err) {
+                const errorMessage = `Unable to inspect source image: ${getErrorMessage(err)}`;
+                console.error(`Failed to inspect ${path}:`, err);
+                pushFailedImage(path, "preflight", errorMessage);
+                await publishProgress({
+                    progress: {
+                        total_images: report.photoUrls.length,
+                        completed_images: aggregatedData.processed_images.length,
+                        current_image_index: Math.min(index + 2, report.photoUrls.length),
+                        current_image_path: report.photoUrls[index + 1],
+                        current_image_name: report.photoUrls[index + 1]?.split("/").pop() || report.photoUrls[index + 1],
+                        percent_complete: Math.round((aggregatedData.processed_images.length / report.photoUrls.length) * 100),
+                    }
+                });
+                continue;
+            }
 
             const imagePayload = {
                 s3_uri: `s3://${bucket}/${path}`,
@@ -125,6 +250,7 @@ export const handler = async (event: { reportId: string, bucket?: string, region
                 if (!aiResponse.ok) {
                     const errorText = await aiResponse.text();
                     console.error(`AI Lambda failed for image ${path}: ${errorText}`);
+                    pushFailedImage(path, "analysis", `AI service returned ${aiResponse.status}: ${errorText}`);
                     continue; // Skip failed image but continue others
                 }
 
@@ -133,12 +259,34 @@ export const handler = async (event: { reportId: string, bucket?: string, region
 
                 if (resultData.error) {
                     console.error(`AI Analysis internal error for image ${path}: ${resultData.error}`);
+                    pushFailedImage(path, "analysis", resultData.error);
                     continue;
                 }
 
+                const detections = Array.isArray(resultData.detections) ? resultData.detections : [];
+                const outputS3UriSet = new Set<string>();
+                detections.forEach((d: any) => {
+                    if (typeof d.output_s3_uri === "string" && d.output_s3_uri.length > 0) {
+                        outputS3UriSet.add(d.output_s3_uri);
+                    }
+                });
+                const outputS3Uris = Array.from(outputS3UriSet);
+
+                aggregatedData.total_images_analyzed += 1;
+                aggregatedData.total_images_succeeded += 1;
+                if (detections.length > 0) {
+                    aggregatedData.total_images_with_detections += 1;
+                }
+                aggregatedData.processed_images.push({
+                    path,
+                    status: detections.length > 0 ? "detected" : "no_detections",
+                    detection_count: detections.length,
+                    output_s3_uris: outputS3Uris,
+                });
+
                 // Aggregate Results
-                if (resultData.detections) {
-                    aggregatedData.detections.push(...resultData.detections);
+                if (detections.length > 0) {
+                    aggregatedData.detections.push(...detections);
                 }
                 if (resultData.evidence_bullets) {
                     aggregatedData.evidence_bullets.push(...resultData.evidence_bullets);
@@ -156,7 +304,19 @@ export const handler = async (event: { reportId: string, bucket?: string, region
 
             } catch (err) {
                 console.error(`Exception processing image ${path}:`, err);
+                pushFailedImage(path, "analysis", getErrorMessage(err));
             }
+
+            await publishProgress({
+                progress: {
+                    total_images: report.photoUrls.length,
+                    completed_images: aggregatedData.processed_images.length,
+                    current_image_index: Math.min(index + 2, report.photoUrls.length),
+                    current_image_path: report.photoUrls[index + 1],
+                    current_image_name: report.photoUrls[index + 1]?.split("/").pop() || report.photoUrls[index + 1],
+                    percent_complete: Math.round((aggregatedData.processed_images.length / report.photoUrls.length) * 100),
+                }
+            });
         }
 
         // Finalize aggregated data
@@ -169,6 +329,16 @@ export const handler = async (event: { reportId: string, bucket?: string, region
         // Remove duplicates from bullets/signals
         aggregatedData.evidence_bullets = Array.from(new Set(aggregatedData.evidence_bullets));
         aggregatedData.fraud_signals = Array.from(new Set(aggregatedData.fraud_signals));
+        (aggregatedData as any).status = aggregatedData.total_images_failed > 0 ? "completed_with_warnings" : "completed";
+        (aggregatedData as any).completedAt = new Date().toISOString();
+        (aggregatedData as any).progress = {
+            total_images: report.photoUrls.length,
+            completed_images: aggregatedData.processed_images.length,
+            current_image_index: report.photoUrls.length,
+            current_image_path: undefined,
+            current_image_name: undefined,
+            percent_complete: 100,
+        };
 
         let analysisData = aggregatedData;
 
@@ -180,7 +350,6 @@ export const handler = async (event: { reportId: string, bucket?: string, region
             });
 
             console.log(`Copying ${uniqueOutputUris.size} unique analyzed images...`);
-            const s3Client = new S3Client({ region });
             const uriToLocalKeyMap = new Map<string, string>();
 
             for (const outputS3Uri of Array.from(uniqueOutputUris)) {
@@ -211,6 +380,12 @@ export const handler = async (event: { reportId: string, bucket?: string, region
                         await upload.done();
                         uriToLocalKeyMap.set(outputS3Uri, targetKey);
                     } catch (e) {
+                        const errorMessage = getErrorMessage(e);
+                        analysisData.copy_warnings.push({
+                            name: sourceKey.split("/").pop() || outputS3Uri,
+                            uri: outputS3Uri,
+                            error: errorMessage,
+                        });
                         console.error(`Failed to copy ${outputS3Uri}:`, e);
                     }
                 }
@@ -222,18 +397,25 @@ export const handler = async (event: { reportId: string, bucket?: string, region
                 local_output_path: d.output_s3_uri ? uriToLocalKeyMap.get(d.output_s3_uri) : undefined
             }));
             analysisData.all_local_paths = Array.from(uriToLocalKeyMap.values());
+            analysisData.copied_image_count = analysisData.all_local_paths.length;
+            analysisData.processed_images = analysisData.processed_images.map((image) => {
+                if (!image.output_s3_uris || image.output_s3_uris.length === 0) {
+                    return image;
+                }
+
+                const localOutputPaths = image.output_s3_uris
+                    .map((uri) => uriToLocalKeyMap.get(uri))
+                    .filter(Boolean) as string[];
+
+                return {
+                    ...image,
+                    local_output_paths: localOutputPaths,
+                };
+            });
         }
 
         // 4. Update Report with Results
         console.log("Saving results to report...");
-        const updateQuery = `
-            mutation UpdateIncidentReport($input: UpdateIncidentReportInput!) {
-                updateIncidentReport(input: $input) {
-                    id
-                }
-            }
-        `;
-
         const updateResponse = await fetch(apiEndpoint, {
             method: 'POST',
             headers: {

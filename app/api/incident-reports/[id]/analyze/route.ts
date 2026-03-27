@@ -49,7 +49,19 @@ export async function POST(
                     variables: {
                         input: {
                             id,
-                            aiAnalysis: JSON.stringify({ status: "analyzing", startTime: new Date().toISOString() })
+                            aiAnalysis: JSON.stringify({
+                                status: "analyzing",
+                                startTime: new Date().toISOString(),
+                                total_images_uploaded: report.photoUrls.length,
+                                progress: {
+                                    total_images: report.photoUrls.length,
+                                    completed_images: 0,
+                                    current_image_index: report.photoUrls.length > 0 ? 1 : 0,
+                                    current_image_path: report.photoUrls[0],
+                                    current_image_name: report.photoUrls[0]?.split("/").pop() || report.photoUrls[0],
+                                    percent_complete: 0,
+                                }
+                            })
                         }
                     }
                 });

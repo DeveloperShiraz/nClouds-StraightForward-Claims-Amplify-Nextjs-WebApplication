@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUrl, remove } from "aws-amplify/storage";
+import { getUrl } from "aws-amplify/storage";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "@/amplify/data/resource";
@@ -49,6 +49,7 @@ interface IncidentReport {
 }
 
 const client = generateClient<Schema>();
+const AUTO_REFRESH_INTERVAL_MS = 10000;
 
 export default function ReportsPage() {
   const searchParams = useSearchParams();
@@ -62,6 +63,10 @@ export default function ReportsPage() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [photoUrlsMap, setPhotoUrlsMap] = useState<Record<string, string[]>>({});
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>("all");
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
+  const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
+  const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_INTERVAL_MS / 1000);
   const { isAdmin, isIncidentReporter, isSuperAdmin, isHomeOwner, isLoading: roleLoading, companyId, userEmail } = useUserRole();
   const { companies } = useCompany();
 
@@ -100,6 +105,13 @@ export default function ReportsPage() {
     router.push("/Dashboard/reports");
   };
 
+  const scheduleNextRefresh = () => {
+    const now = Date.now();
+    setLastRefreshAt(now);
+    setNextRefreshAt(now + AUTO_REFRESH_INTERVAL_MS);
+    setRefreshCountdown(Math.ceil(AUTO_REFRESH_INTERVAL_MS / 1000));
+  };
+
   const getSignedPhotoUrls = async (photoPaths: string[]): Promise<string[]> => {
     if (!photoPaths || photoPaths.length === 0) return [];
 
@@ -122,9 +134,14 @@ export default function ReportsPage() {
     }
   };
 
-  const fetchReports = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchReports = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) {
+      setIsLoading(true);
+      setError(null);
+    }
+    if (background) {
+      setIsBackgroundRefreshing(true);
+    }
     try {
       console.log("Fetching incident reports...");
 
@@ -174,17 +191,34 @@ export default function ReportsPage() {
       const urlsMap: Record<string, string[]> = {};
       for (const report of allReports) {
         if (report.photoUrls && report.photoUrls.length > 0) {
-          urlsMap[report.id] = await getSignedPhotoUrls(report.photoUrls);
+          const previousReport = reports.find(existingReport => existingReport.id === report.id);
+          const canReuseSignedUrls =
+            previousReport &&
+            JSON.stringify(previousReport.photoUrls || []) === JSON.stringify(report.photoUrls || []) &&
+            photoUrlsMap[report.id]?.length;
+
+          if (canReuseSignedUrls) {
+            urlsMap[report.id] = photoUrlsMap[report.id];
+          } else {
+            urlsMap[report.id] = await getSignedPhotoUrls(report.photoUrls);
+          }
         }
       }
       setPhotoUrlsMap(urlsMap);
+      setError(null);
+      scheduleNextRefresh();
 
       console.log(`✅ Loaded ${allReports.length} incident reports`);
     } catch (err: any) {
       console.error("Error fetching reports:", err);
       setError(err?.message || "Failed to load incident reports");
     } finally {
-      setIsLoading(false);
+      if (background) {
+        setIsBackgroundRefreshing(false);
+      }
+      if (!background) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -195,6 +229,55 @@ export default function ReportsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleLoading, isAdmin, isIncidentReporter]);
+
+  useEffect(() => {
+    if (roleLoading) {
+      return;
+    }
+
+    let isRefreshing = false;
+
+    const refreshReports = async () => {
+      if (document.hidden || isRefreshing) {
+        return;
+      }
+
+      isRefreshing = true;
+      try {
+        await fetchReports({ background: true });
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const interval = window.setInterval(refreshReports, AUTO_REFRESH_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshReports();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleLoading, isAdmin, isIncidentReporter]);
+
+  useEffect(() => {
+    if (roleLoading || !nextRefreshAt) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const secondsRemaining = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+      setRefreshCountdown(secondsRemaining);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [roleLoading, nextRefreshAt]);
 
   // Apply company filter AND address filter
   useEffect(() => {
@@ -227,26 +310,6 @@ export default function ReportsPage() {
     setDeletingId(id);
     try {
       console.log(`Deleting incident report with ID: ${id}`);
-
-      // Find the report to get photo URLs
-      const reportToDelete = reports.find(report => report.id === id);
-
-      // Delete photos from S3 first
-      if (reportToDelete?.photoUrls && reportToDelete.photoUrls.length > 0) {
-        console.log(`Deleting ${reportToDelete.photoUrls.length} photos from S3...`);
-        const deletePromises = reportToDelete.photoUrls.map(async (photoPath) => {
-          try {
-            await remove({ path: photoPath });
-            console.log(`✅ Deleted photo: ${photoPath}`);
-          } catch (error) {
-            console.error(`Failed to delete photo ${photoPath}:`, error);
-          }
-        });
-        await Promise.all(deletePromises);
-        console.log("✅ All photos deleted from S3");
-      }
-
-      // AI Image deletion is now handled by the backend API to ensure correct bucket access.
 
       // Delete the report from DynamoDB via API
       const response = await fetch(`/api/incident-reports/${id}`, {
@@ -283,6 +346,26 @@ export default function ReportsPage() {
 
       if (response.ok) {
         console.log("✅ AI Analysis triggered successfully. Starting polling...");
+        setReports(prev => prev.map(report =>
+          report.id === id
+            ? {
+              ...report,
+              aiAnalysis: JSON.stringify({
+                status: "analyzing",
+                startTime: new Date().toISOString(),
+                total_images_uploaded: report.photoUrls?.length || 0,
+                progress: {
+                  total_images: report.photoUrls?.length || 0,
+                  completed_images: 0,
+                  current_image_index: (report.photoUrls?.length || 0) > 0 ? 1 : 0,
+                  current_image_path: report.photoUrls?.[0],
+                  current_image_name: report.photoUrls?.[0]?.split("/").pop() || report.photoUrls?.[0],
+                  percent_complete: 0,
+                }
+              })
+            }
+            : report
+        ));
 
         // Polling logic: check the report every 5 seconds for up to 5 minutes
         const client = generateClient<Schema>();
@@ -959,13 +1042,55 @@ export default function ReportsPage() {
     );
   }
 
+  const refreshProgressPercent = nextRefreshAt
+    ? Math.min(
+      100,
+      Math.max(
+        0,
+        ((AUTO_REFRESH_INTERVAL_MS - Math.max(0, nextRefreshAt - Date.now())) / AUTO_REFRESH_INTERVAL_MS) * 100
+      )
+    )
+    : 0;
+
+  const lastRefreshLabel = lastRefreshAt
+    ? new Date(lastRefreshAt).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+    : null;
+
   return (
     <div className="p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <Heading size="sm" className="text-foreground">
           Incident Reports
         </Heading>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-900/10">
+            <div className="flex items-center gap-2 text-xs font-medium text-blue-800 dark:text-blue-300">
+              <Clock className={`h-3.5 w-3.5 ${isBackgroundRefreshing ? "animate-pulse" : ""}`} />
+              <span>
+                {isBackgroundRefreshing
+                  ? "Refreshing reports now..."
+                  : nextRefreshAt
+                    ? `Next auto-refresh in ${refreshCountdown}s`
+                    : "Waiting for first sync..."}
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-[width] duration-1000 ease-linear"
+                style={{ width: `${isBackgroundRefreshing ? 100 : refreshProgressPercent}%` }}
+              />
+            </div>
+            {lastRefreshLabel && (
+              <p className="mt-2 text-[11px] text-blue-700/80 dark:text-blue-300/80">
+                Last synced at {lastRefreshLabel}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
           {/* Company Filter for SuperAdmin */}
           {isSuperAdmin && companies.length > 0 && (
             <Select value={selectedCompanyFilter} onValueChange={setSelectedCompanyFilter}>
@@ -982,10 +1107,11 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
           )}
-          <Button onClick={fetchReports} variant="outline" size="sm">
+          <Button onClick={() => fetchReports()} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
+          </div>
         </div>
       </div>
 
@@ -1267,7 +1393,11 @@ export default function ReportsPage() {
 
               {/* AI Analysis Section - Hidden for HomeOwners */}
               {!isHomeOwner && report.aiAnalysis && (
-                <AIAnalysisDisplay analysis={report.aiAnalysis} />
+                <AIAnalysisDisplay
+                  analysis={report.aiAnalysis}
+                  reportId={report.id}
+                  totalImages={report.photoUrls?.length || 0}
+                />
               )}
             </div>
           ))}
