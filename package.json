@@ -21,6 +21,7 @@
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/lib-dynamodb": "^3.751.0",
     "@aws-sdk/lib-storage": "^3.969.0",
+    "@smithy/config-resolver": "^4.1.0",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-avatar": "^1.1.1",
