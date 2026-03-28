@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
       'node_modules/esbuild/**',
       'node_modules/@esbuild/**',
       'node_modules/typescript/**',
-      'node_modules/@aws-sdk/**',
       'node_modules/@aws-amplify/backend/**',
       'node_modules/@aws-amplify/backend-cli/**',
       'node_modules/tailwindcss/**',
